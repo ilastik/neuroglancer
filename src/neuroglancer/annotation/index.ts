@@ -45,6 +45,7 @@ export enum AnnotationType {
   LINE,
   AXIS_ALIGNED_BOUNDING_BOX,
   ELLIPSOID,
+  BRUSH
 }
 
 export const annotationTypes = [
@@ -52,6 +53,7 @@ export const annotationTypes = [
   AnnotationType.LINE,
   AnnotationType.AXIS_ALIGNED_BOUNDING_BOX,
   AnnotationType.ELLIPSOID,
+  AnnotationType.BRUSH,
 ];
 
 export interface AnnotationBase {
@@ -73,6 +75,147 @@ export interface Line extends AnnotationBase {
   type: AnnotationType.LINE;
 }
 
+export interface Brush extends AnnotationBase{
+  type: AnnotationType.BRUSH;
+  xMap? : Map<number/*x*/, Map<number/*y*/, Map<number/*z*/, vec3/*point*/>>>
+}
+
+export class BrushStrokeStruct{
+  public static readonly POINTS_PER_STROKE = 1000;
+  public static readonly COORDS_PER_POINT = 3;
+  public static readonly BYTES_PER_COORD = 4; //float takes 4 bytes
+  public static readonly FLOATS_FOR_POINTS = BrushStrokeStruct.POINTS_PER_STROKE * BrushStrokeStruct.COORDS_PER_POINT
+  public static readonly BYTES_FOR_POINTS = BrushStrokeStruct.FLOATS_FOR_POINTS * BrushStrokeStruct.BYTES_PER_COORD
+
+  public static readonly BYTES_FOR_POINT_COUNTER = 4
+  public static readonly BYTES_FOR_COLOR = 3 * 4 //rgb (3), each channel is a 4-byte Float
+
+  public static readonly NUM_SERIALIZED_BYTES = BrushStrokeStruct.BYTES_FOR_POINTS + BrushStrokeStruct.BYTES_FOR_POINT_COUNTER + BrushStrokeStruct.BYTES_FOR_COLOR
+
+  public data: Uint8Array //can't be ArrayBuffer because i need to rember offsets
+
+  public numVoxels: Uint32Array
+  public voxelCoords: Float32Array
+  public color: Float32Array
+
+  constructor(data?: Uint8Array, numVoxels?: number){
+    data = data || new Uint8Array(BrushStrokeStruct.NUM_SERIALIZED_BYTES)
+    this.data = data
+    this.numVoxels =   new Uint32Array (data.buffer, data.byteOffset,                                           1)
+    this.voxelCoords = new Float32Array(data.buffer, this.numVoxels.byteOffset +   this.numVoxels.byteLength,   BrushStrokeStruct.FLOATS_FOR_POINTS)
+    this.color =       new Float32Array(data.buffer, this.voxelCoords.byteOffset + this.voxelCoords.byteLength, 3) //3 float components: rgb
+
+    if(numVoxels !== undefined){
+      this.numVoxels[0] = numVoxels
+    }
+  }
+
+  public getNumVoxels(): number{
+    return this.numVoxels[0]
+  }
+
+  public getColor(): vec3{
+    return vec3.fromValues(this.color[0], this.color[1], this.color[2])
+  }
+
+  public setColor(value: vec3){
+    this.color[0] = value[0]
+    this.color[1] = value[1]
+    this.color[2] = value[2]
+  }
+
+  public addVoxel(voxelCoords: vec3){
+    var offset = this.getNumVoxels() * BrushStrokeStruct.COORDS_PER_POINT
+    this.voxelCoords[offset + 0] = voxelCoords[0]
+    this.voxelCoords[offset + 1] = voxelCoords[1]
+    this.voxelCoords[offset + 2] = voxelCoords[2]
+    this.numVoxels[0] = this.numVoxels[0] + 1
+  }
+
+  public getVoxel(idx: number){
+    const baseOffset = idx * BrushStrokeStruct.COORDS_PER_POINT
+    return vec3.fromValues(this.voxelCoords[baseOffset + 0], this.voxelCoords[baseOffset + 1], this.voxelCoords[baseOffset + 2])
+  }
+}
+
+export class BrushAnnotation implements Brush{
+  public static readonly VOXEL_DISTANCE_THREASHOLD = 10
+  type: AnnotationType.BRUSH = AnnotationType.BRUSH;
+  public description = '';
+  public xMap = new Map<number/*x*/, Map<number/*y*/, Map<number/*z*/, vec3/*point*/>>>();
+  public data = new BrushStrokeStruct(undefined, 0);
+
+  constructor(public readonly firstVoxel: vec3, color:vec3, public segments?: Uint64[], public id=''){
+    this.addVoxel(firstVoxel);
+    this.color = color;
+  }
+
+  public addVoxel(voxelCoords: vec3){
+    let x = Math.floor(voxelCoords[0]);
+    let y = Math.floor(voxelCoords[1]);
+    let z = Math.floor(voxelCoords[2]);
+
+    var yMap = this.xMap.get(x) || new Map<number/*y*/, Map<number/*z*/, vec3/*point*/>>();
+    this.xMap.set(x, yMap);
+
+    var zMap = yMap.get(y) || new Map<number/*z*/, vec3/*point*/>();
+    yMap.set(y, zMap);
+
+    const roundedCoordsVoxel = vec3.fromValues(x, y, z);
+
+//    if(zMap.has(z)){
+//      console.log(`Discarding repeated voxel ${roundedCoordsVoxel}`)
+//      return
+//    }
+    if(this.numVoxels > 0){
+      const lastVoxel = this.data.getVoxel(this.numVoxels - 1)
+      if(vec3.equals(lastVoxel, roundedCoordsVoxel)){
+        console.log(`Discarding repeated voxel ${roundedCoordsVoxel}`)
+        return
+      }
+      if(vec3.distance(lastVoxel, roundedCoordsVoxel) > BrushAnnotation.VOXEL_DISTANCE_THREASHOLD){
+        console.log(`Discarding voxel that is too far from the previous one: ${roundedCoordsVoxel} -- previous was ${lastVoxel}`)
+        return
+      }
+    }
+
+    console.log(`Adding new voxel ${roundedCoordsVoxel}`)
+    zMap.set(z, roundedCoordsVoxel);
+    this.data.addVoxel(roundedCoordsVoxel)
+  }
+
+  public get color(): vec3{
+    return this.data.getColor()
+  }
+
+  public set color(value: vec3){
+    this.data.setColor(value);
+  }
+
+  public get numVoxels() : number{
+    return this.data.getNumVoxels()
+  }
+
+  public fillWithCoords(buffer: Uint8Array){
+    buffer.set(this.data.data)
+  }
+
+  async upload(){
+    var mydata = new FormData();
+    console.log("FIXME: upload!")
+    return fetch('http://localhost:5000/lines', {
+          method: 'POST',
+          body: mydata
+    })
+  }
+
+  destroy(){
+    const myreq = new XMLHttpRequest();
+    myreq.open('DELETE', `http://localhost:5000/lines/${this.id}`);
+    myreq.send();
+  }
+}
+
 export interface Point extends AnnotationBase {
   point: vec3;
   type: AnnotationType.POINT;
@@ -90,7 +233,7 @@ export interface Ellipsoid extends AnnotationBase {
   type: AnnotationType.ELLIPSOID;
 }
 
-export type Annotation = Line|Point|AxisAlignedBoundingBox|Ellipsoid;
+export type Annotation = Line|Point|AxisAlignedBoundingBox|Ellipsoid|Brush|BrushAnnotation;
 
 export interface AnnotationTypeHandler<T extends Annotation> {
   icon: string;
@@ -215,6 +358,26 @@ typeHandlers.set(AnnotationType.ELLIPSOID, {
   },
 });
 
+typeHandlers.set(AnnotationType.BRUSH, {
+  icon: '🖌',
+  description: 'Brush Strokes',
+  toJSON: (annotation: Brush) => {
+    console.log(`FIXME ${annotation}`)
+    return {fixme: "fixme"}
+  },
+  restoreState: (annotation: Brush, obj: any) => {
+    console.log(`FIXME ${annotation}  ${obj}`)
+  },
+  serializedBytes: BrushStrokeStruct.NUM_SERIALIZED_BYTES,
+  serializer: (buffer: ArrayBuffer, offset: number, numAnnotations: number) => {
+    //FIXME: this feels a lot like the serializer defined in brush.ts
+    const coordinates = new Uint8Array(buffer, offset, numAnnotations * BrushStrokeStruct.NUM_SERIALIZED_BYTES);
+    return (annotation: Brush, index: number) => {
+      console.log(`FIXME -> serializer at annotation/index.ts ${annotation} ${index} ${coordinates}`)
+    };
+  },
+});
+
 export function annotationToJson(annotation: Annotation) {
   const result = getAnnotationTypeHandler(annotation.type).toJSON(annotation);
   result.type = AnnotationType[annotation.type].toLowerCase();
@@ -282,6 +445,19 @@ export class AnnotationSource extends RefCounted implements AnnotationSourceSign
   }
 
   commit(reference: AnnotationReference): void {
+    console.log("Committing annotation")
+    const annotation = reference.value!
+    if("upload" in annotation){
+        annotation.upload().then(response =>{
+            if(response.status !== 200){
+                console.log("FIXME! Do some retry logic somewhere");
+                return
+            }
+            console.log(response)
+            debugger
+        })
+    }
+
     const id = reference.id;
     this.pending.delete(id);
   }
@@ -309,6 +485,12 @@ export class AnnotationSource extends RefCounted implements AnnotationSourceSign
     if (reference.value === null) {
       return;
     }
+
+    const annotation = reference.value
+    if(annotation && "destroy" in annotation){
+      annotation.destroy()
+    }
+
     reference.value = null;
     this.annotationMap.delete(reference.id);
     this.pending.delete(reference.id);
@@ -460,7 +642,7 @@ export function serializeAnnotations(allAnnotations: Annotation[][]): Serialized
 }
 
 export class AnnotationSerializer {
-  annotations: [Point[], Line[], AxisAlignedBoundingBox[], Ellipsoid[]] = [[], [], [], []];
+  annotations: [Point[], Line[], AxisAlignedBoundingBox[], Ellipsoid[], Brush[]] = [[], [], [], [], []];
   add(annotation: Annotation) {
     (<Annotation[]>this.annotations[annotation.type]).push(annotation);
   }

@@ -21,7 +21,7 @@
 import './annotations.css';
 
 import debounce from 'lodash/debounce';
-import {Annotation, AnnotationReference, AnnotationType, AxisAlignedBoundingBox, Ellipsoid, getAnnotationTypeHandler, Line} from 'neuroglancer/annotation';
+import {Annotation, AnnotationReference, AnnotationType, AxisAlignedBoundingBox, Ellipsoid, getAnnotationTypeHandler, Line, BrushAnnotation} from 'neuroglancer/annotation';
 import {AnnotationLayer, AnnotationLayerState, PerspectiveViewAnnotationLayer, SliceViewAnnotationLayer} from 'neuroglancer/annotation/frontend';
 import {DataFetchSliceViewRenderLayer, MultiscaleAnnotationSource} from 'neuroglancer/annotation/frontend_source';
 import {setAnnotationHoverStateFromMouseState} from 'neuroglancer/annotation/selection';
@@ -350,6 +350,9 @@ export function getPositionSummary(
       voxelSize.voxelFromSpatial(transformedRadii, transformedRadii);
       element.appendChild(document.createTextNode('±' + formatIntegerBounds(transformedRadii)));
       break;
+    case AnnotationType.BRUSH:
+      element.appendChild(makePointLinkWithTransform((<BrushAnnotation>annotation).firstVoxel));
+      break;
   }
 }
 
@@ -452,6 +455,15 @@ export class AnnotationLayerView extends Tab {
         this.layer.tool.value = new PlaceSphereTool(this.layer, {});
       });
       toolbox.appendChild(ellipsoidButton);
+
+      //Maybe we can just implement this somewhere else so we don't have to polute neuroglancer's logic
+      const brushButton = document.createElement('button');
+      brushButton.textContent = getAnnotationTypeHandler(AnnotationType.BRUSH).icon;
+      brushButton.title = 'Annotate with brush strokes';
+      brushButton.addEventListener('click', () => {
+        this.layer.tool.value = new PlaceBrushStrokeTool(this.layer, {});
+      });
+      toolbox.appendChild(brushButton);
     }
     this.element.appendChild(toolbox);
 
@@ -871,6 +883,7 @@ const ANNOTATE_POINT_TOOL_ID = 'annotatePoint';
 const ANNOTATE_LINE_TOOL_ID = 'annotateLine';
 const ANNOTATE_BOUNDING_BOX_TOOL_ID = 'annotateBoundingBox';
 const ANNOTATE_ELLIPSOID_TOOL_ID = 'annotateSphere';
+const ANNOTATE_BRUSH_TOOL_ID = 'annotateBrush';
 
 export class PlacePointTool extends PlaceAnnotationTool {
   constructor(layer: UserLayerWithAnnotations, options: any) {
@@ -977,6 +990,53 @@ abstract class TwoStepAnnotationTool extends PlaceAnnotationTool {
   }
 }
 
+export class PlaceBrushStrokeTool extends TwoStepAnnotationTool {
+  get description() {
+    return `annotate using brush strokes`;
+  }
+
+  getCurrentColor() : vec3{
+    return getAnnotationRenderOptions(this.layer).color.value;
+  }
+
+  getInitialAnnotation(mouseState: MouseSelectionState, annotationLayer: AnnotationLayerState): Annotation {
+    const currentPoint:vec3 = getMousePositionInAnnotationCoordinates(mouseState, annotationLayer);
+    const segments = getSelectedAssocatedSegment(annotationLayer);
+
+    return new BrushAnnotation(currentPoint, this.getCurrentColor(), segments);
+  }
+
+  getUpdatedAnnotation(
+      oldAnnotation: BrushAnnotation, mouseState: MouseSelectionState,
+      annotationLayer: AnnotationLayerState)
+  {
+    const currentPoint = getMousePositionInAnnotationCoordinates(mouseState, annotationLayer);
+    const segments = oldAnnotation.segments;
+    if (segments !== undefined && segments.length > 0) {
+      segments.length = 1;
+    }
+    let newSegments = getSelectedAssocatedSegment(annotationLayer);
+    if (newSegments && segments) {
+      newSegments = newSegments.filter(x => segments.findIndex(y => Uint64.equal(x, y)) === -1);
+    }
+    const updatedSegments = [...(segments || []), ...(newSegments || [])] || undefined;
+    const currentColor:vec3 = this.getCurrentColor();
+
+    oldAnnotation.addVoxel(currentPoint)
+    oldAnnotation.segments = updatedSegments;
+    oldAnnotation.color = currentColor;
+
+    if(oldAnnotation.numVoxels == 10){
+        (<any>window)['brushing'] = oldAnnotation;
+    }
+
+    return oldAnnotation
+  }
+
+  toJSON() {
+    return ANNOTATE_BRUSH_TOOL_ID;
+  }
+}
 
 abstract class PlaceTwoCornerAnnotationTool extends TwoStepAnnotationTool {
   annotationType: AnnotationType.LINE|AnnotationType.AXIS_ALIGNED_BOUNDING_BOX;
