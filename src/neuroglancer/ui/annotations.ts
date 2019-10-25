@@ -1021,13 +1021,12 @@ export class PlaceBrushStrokeTool extends TwoStepAnnotationTool {
       newSegments = newSegments.filter(x => segments.findIndex(y => Uint64.equal(x, y)) === -1);
     }
     const updatedSegments = [...(segments || []), ...(newSegments || [])] || undefined;
-    const currentColor:vec3 = this.getCurrentColor();
 
     oldAnnotation.addVoxel(currentPoint)
     oldAnnotation.segments = updatedSegments;
-    oldAnnotation.color = currentColor;
+    oldAnnotation.setColor(this.getCurrentColor());
 
-    if(oldAnnotation.numVoxels == 10){
+    if(oldAnnotation.getNumVoxels() == 10){
         (<any>window)['brushing'] = oldAnnotation;
     }
 
