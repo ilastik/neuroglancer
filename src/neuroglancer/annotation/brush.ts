@@ -23,8 +23,10 @@ import {AnnotationRenderContext, AnnotationRenderHelper, registerAnnotationTypeR
 import {mat4, vec3} from 'neuroglancer/util/geom';
 import {emitterDependentShaderGetter, ShaderBuilder} from 'neuroglancer/webgl/shader';
 import {Uint64} from 'neuroglancer/util/uint64';
+import {GL} from 'neuroglancer/webgl/context';
+import {Buffer} from 'neuroglancer/webgl/buffer';
 
-class RenderHelper extends AnnotationRenderHelper {
+export class RenderHelper extends AnnotationRenderHelper {
   private shaderGetter = emitterDependentShaderGetter(this, this.gl, (builder: ShaderBuilder) => this.defineShader(builder));
 
   defineShader(builder: ShaderBuilder) {
@@ -60,6 +62,20 @@ class RenderHelper extends AnnotationRenderHelper {
       gl.drawArrays(WebGL2RenderingContext.LINE_STRIP, /*first*/0, /*count*/100)//, /*isntanceCount*/1)
       //gl.vertexAttribDivisor(aVertexPosition, 0);
       gl.disableVertexAttribArray(aVertexPosition);
+    });
+  }
+
+  drawAnnotation(context: AnnotationRenderContext, annotation: BrushAnnotation){
+    const shader = this.shaderGetter(context.renderContext.emitter);
+    this.enable(shader, context, () => {
+      const {gl} = this;
+      annotation.setColorUniform(shader.uniform('uBrushColor'), gl);
+      const aVertexPosition = shader.attribute('aVertexPosition');
+      const voxelCoordsBuffer = annotation.bindVoxelCoordsToAttribute(aVertexPosition, gl)
+      gl.drawArrays(WebGL2RenderingContext.LINE_STRIP, /*first*/0, annotation.getNumVoxels())//, /*isntanceCount*/1)
+      //gl.vertexAttribDivisor(aVertexPosition, 0);
+      gl.disableVertexAttribArray(aVertexPosition);
+      voxelCoordsBuffer.dispose()
     });
   }
 }
@@ -98,6 +114,22 @@ export class BrushAnnotation implements Brush{
 
     this.addVoxel(firstVoxel);
     this.setColor(color);
+  }
+
+  public bindVoxelCoordsToAttribute(attributeIndex: number, gl: GL): Buffer{
+    const buffer = new Buffer(gl);
+    buffer.setData(this.voxelCoords.subarray(0, this.getNumVoxels() * BrushAnnotation.COORDS_PER_POINT))
+    buffer.bindToVertexAttrib(attributeIndex,
+                              /*components=*/3,
+                              /*attributeType=*/WebGL2RenderingContext.FLOAT,
+                              /*normalized=*/false,
+                              /*stride=*/0,
+                              /*offset=*/0);
+    return buffer
+  }
+
+  public setColorUniform(uniformIndex: WebGLUniformLocation, gl: GL){
+      gl.uniform3fv(uniformIndex, this.color);
   }
 
   public getNumVoxels(): number{

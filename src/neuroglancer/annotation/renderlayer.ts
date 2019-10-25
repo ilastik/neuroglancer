@@ -20,7 +20,8 @@ import 'neuroglancer/annotation/point';
 import 'neuroglancer/annotation/ellipsoid';
 import 'neuroglancer/annotation/brush';
 
-import {AnnotationBase, AnnotationSource, annotationTypes} from 'neuroglancer/annotation';
+import {AnnotationBase, AnnotationSource, annotationTypes, AnnotationType} from 'neuroglancer/annotation';
+import {BrushAnnotation, RenderHelper as BrushRenderHelper} from 'neuroglancer/annotation/brush';
 import {AnnotationLayerState} from 'neuroglancer/annotation/annotation_layer_state';
 import {ANNOTATION_PERSPECTIVE_RENDER_LAYER_RPC_ID, ANNOTATION_RENDER_LAYER_RPC_ID, ANNOTATION_RENDER_LAYER_UPDATE_SEGMENTATION_RPC_ID} from 'neuroglancer/annotation/base';
 import {AnnotationGeometryData, MultiscaleAnnotationSource} from 'neuroglancer/annotation/frontend_source';
@@ -351,7 +352,17 @@ function AnnotationRenderLayer<TBase extends {
             count,
             projectionMatrix,
           };
-          this.renderHelpers[annotationType].draw(context);
+
+          const annotationSource = base.source;
+          if(annotationType == AnnotationType.BRUSH && annotationSource instanceof AnnotationSource){
+            ids.forEach(brushAnnotationId => {
+              let brushAnnotation = <BrushAnnotation>(annotationSource.get(brushAnnotationId));
+              let brushRenderer = <BrushRenderHelper>(this.renderHelpers[annotationType])
+              brushRenderer.drawAnnotation(context, brushAnnotation);
+            });
+          }else{
+            this.renderHelpers[annotationType].draw(context);
+          }
           pickId += count * handler.pickIdsPerInstance;
         }
       }
