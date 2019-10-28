@@ -25,7 +25,8 @@ import {emitterDependentShaderGetter, ShaderBuilder} from 'neuroglancer/webgl/sh
 import {Uint64} from 'neuroglancer/util/uint64';
 import {GL} from 'neuroglancer/webgl/context';
 import {Buffer} from 'neuroglancer/webgl/buffer';
-import {ILAnnotation, ILDataSource} from 'neuroglancer/util/ilastik'
+import {ILAnnotation} from 'neuroglancer/util/ilastik'
+import {PixelClassificationWorkflow} from 'neuroglancer/pixel_classification'
 
 export class RenderHelper extends AnnotationRenderHelper {
   private shaderGetter = emitterDependentShaderGetter(this, this.gl, (builder: ShaderBuilder) => this.defineShader(builder));
@@ -103,7 +104,7 @@ export class BrushAnnotation implements Brush{
   private numVoxels: Uint32Array
   private voxelCoords: Float32Array
   private color: Float32Array
-  public readonly datasourcePromise: Promise<ILDataSource>
+
   private upstreamAnnotation: ILAnnotation|undefined
 
   constructor(public readonly firstVoxel: vec3, color:vec3, public segments?: Uint64[], public id=''){
@@ -117,7 +118,6 @@ export class BrushAnnotation implements Brush{
 
     this.addVoxel(firstVoxel);
     this.setColor(color);
-    this.datasourcePromise = ILDataSource.create("/home/tomaz/ilastikTests/SampleData/c_cells/cropped/cropped1.png")
   }
 
   public bindVoxelCoordsToAttribute(attributeIndex: number, gl: GL): Buffer{
@@ -207,13 +207,18 @@ export class BrushAnnotation implements Brush{
   }
 
   public async upload(){
+    const pixelWorkflow = await PixelClassificationWorkflow.getInstance()
+    const dataSource = await PixelClassificationWorkflow.getFirstLayerDataSource()
     const jsonData = this.toJsonData()
-    const datasource = await this.datasourcePromise
-    this.upstreamAnnotation = await ILAnnotation.create(jsonData.voxels, jsonData.color, datasource)
+
+    this.upstreamAnnotation = await ILAnnotation.create(jsonData.voxels, jsonData.color, dataSource)
+
+    pixelWorkflow.addAnnotation(this.upstreamAnnotation)
   }
 
-  public destroy(){
-    this.upstreamAnnotation!.destroy()
+  public async destroy(){
+    const workflow = await PixelClassificationWorkflow.getInstance()
+    workflow.removeAnnotation(this.upstreamAnnotation!)
   }
 }
 

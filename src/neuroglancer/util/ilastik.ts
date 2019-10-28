@@ -110,6 +110,15 @@ export class ILAnnotation extends ILObject{
 export class ILDataSource extends ILObject{
     private constructor(public url: String, public id: String){super();}
 
+    public static async retrieve(id: String){
+        const response = await fetch(`${ILObject.ilastikServerUrl}/data_source/${id}`, {method: 'GET'})
+        if(!response.ok){
+            throw Error(`Creating ${this.name} failed`)
+        }
+        const datasource_data = await response.json()
+        return new this(datasource_data['url'], id);
+    }
+
     public static async create(url: String){
         const response = await fetch(`${ILObject.ilastikServerUrl}/data_source`, {
             method: 'POST',
@@ -152,20 +161,41 @@ export class ILPixelClassifier extends ILObject{
         return new this(feature_extractors, annotations, id);
     }
 
-    public getPrecomputedUrl(datasource: ILDataSource): String{
-        return `precomputed://${ILObject.ilastikServerUrl}/predictions/${this.id}/${datasource.id}/info`
+    public getPredictionsUrl(datasource: ILDataSource): String{
+        return `precomputed://${ILObject.ilastikServerUrl}/predictions/${this.id}/${datasource.id}`
     }
 
-//    public refreshLayer(name: String){
-//        const viewer = <Viewer>((<any>window)['viewer']);
-//        const layerManager = viewer.layerSpecification.layerManager;
-//        const mylayer = layerManager.getLayerByName(name)!;
-//        layerManager.removeManagedLayer(mylayer);
-//        console.log("Removing layer.... Here's what happens if I look for it again:");
-//        console.log(layerManager.getLayerByName(name));
-//        const myl = viewer.layerSpecification.getLayer(name, this.getPrecomputedUrl());
-//        viewer.layerSpecification.add(myl);
-//    }
 }
 
+export class ILPixelClassificationWorkflow{
+    protected featureExtractors = new Map<String, ILFeatureExtractor>()
+    protected annotations = new Map<String, ILAnnotation>()
+    protected pixelClassifier: ILPixelClassifier|undefined
 
+    constructor(public raw_data:ILDataSource){
+    }
+
+    protected async tryUpdatePixelClassifier(): Promise<ILPixelClassifier|undefined>{
+        if(this.annotations.size > 0 && this.featureExtractors.size > 0){
+            this.pixelClassifier = await ILPixelClassifier.create(Array.from(this.featureExtractors.values()),
+                                                                  Array.from(this.annotations.values()))
+        }
+        return this.pixelClassifier
+    }
+
+    public async addFeatureExtractor(extractor: ILFeatureExtractor){
+        this.featureExtractors.set(extractor.id, extractor)
+        return await this.tryUpdatePixelClassifier()
+    }
+
+    public async addAnnotation(annotation:ILAnnotation){
+        this.annotations.set(annotation.id, annotation)
+        return await this.tryUpdatePixelClassifier()
+    }
+
+    public async removeAnnotation(annotation:ILAnnotation){
+        this.annotations.delete(annotation.id)
+        await annotation.destroy()
+        return await this.tryUpdatePixelClassifier()
+    }
+}
