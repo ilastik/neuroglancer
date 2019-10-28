@@ -288,14 +288,7 @@ export class AnnotationSource extends RefCounted implements AnnotationSourceSign
     console.log("Committing annotation")
     const annotation = reference.value!
     if("upload" in annotation){
-        annotation.upload().then(response =>{
-            if(response.status !== 200){
-                console.log("FIXME! Do some retry logic somewhere");
-                return
-            }
-            console.log(response)
-            debugger
-        })
+        annotation.upload()
     }
 
     const id = reference.id;

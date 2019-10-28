@@ -25,6 +25,7 @@ import {emitterDependentShaderGetter, ShaderBuilder} from 'neuroglancer/webgl/sh
 import {Uint64} from 'neuroglancer/util/uint64';
 import {GL} from 'neuroglancer/webgl/context';
 import {Buffer} from 'neuroglancer/webgl/buffer';
+import {ILAnnotation, ILDataSource} from 'neuroglancer/util/ilastik'
 
 export class RenderHelper extends AnnotationRenderHelper {
   private shaderGetter = emitterDependentShaderGetter(this, this.gl, (builder: ShaderBuilder) => this.defineShader(builder));
@@ -102,6 +103,8 @@ export class BrushAnnotation implements Brush{
   private numVoxels: Uint32Array
   private voxelCoords: Float32Array
   private color: Float32Array
+  public readonly datasourcePromise: Promise<ILDataSource>
+  private upstreamAnnotation: ILAnnotation|undefined
 
   constructor(public readonly firstVoxel: vec3, color:vec3, public segments?: Uint64[], public id=''){
     const data = new Uint8Array(BrushAnnotation.NUM_SERIALIZED_BYTES)
@@ -114,6 +117,7 @@ export class BrushAnnotation implements Brush{
 
     this.addVoxel(firstVoxel);
     this.setColor(color);
+    this.datasourcePromise = ILDataSource.create("/home/tomaz/ilastikTests/SampleData/c_cells/cropped/cropped1.png")
   }
 
   public bindVoxelCoordsToAttribute(attributeIndex: number, gl: GL): Buffer{
@@ -181,25 +185,35 @@ export class BrushAnnotation implements Brush{
     this.appendVoxelToBuffer(roundedCoordsVoxel)
   }
 
-
-
   public fillWithCoords(buffer: Uint8Array){
     buffer.set(this.data)
   }
 
-  async upload(){
-    var mydata = new FormData();
-    console.log("FIXME: upload!")
-    return fetch('http://localhost:5000/lines', {
-          method: 'POST',
-          body: mydata
-    })
+  public toJsonData(){
+    const jsonPoints = new Array<{x:number, y:number, z:number}>()
+    for(let i=0; i<this.getNumVoxels(); i++){
+      let voxel = this.getVoxel(i);
+      jsonPoints.push({x: voxel[0], y: voxel[1], z: voxel[2]})
+    }
+    const brushColor = this.getColor()
+    return {
+      voxels: jsonPoints,
+      color: [
+        Math.floor(brushColor[0] * 255),
+        Math.floor(brushColor[1] * 255),
+        Math.floor(brushColor[2] * 255)
+      ],
+    }
   }
 
-  destroy(){
-    const myreq = new XMLHttpRequest();
-    myreq.open('DELETE', `http://localhost:5000/lines/${this.id}`);
-    myreq.send();
+  public async upload(){
+    const jsonData = this.toJsonData()
+    const datasource = await this.datasourcePromise
+    this.upstreamAnnotation = await ILAnnotation.create(jsonData.voxels, jsonData.color, datasource)
+  }
+
+  public destroy(){
+    this.upstreamAnnotation!.destroy()
   }
 }
 
