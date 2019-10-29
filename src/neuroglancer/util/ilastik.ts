@@ -92,7 +92,7 @@ export class ILHessianOfGaussian extends ILFeatureExtractor{
 }
 
 export class ILAnnotation extends ILObject{
-    private constructor(public id: String){super();}
+    private constructor(public id: String, public color: Array<number>){super();}
 
     public static async create(voxels: Array<{x:number, y:number, z:number}>, color: Array<number>, rawData: ILDataSource){
         const response = await fetch(`${ILObject.ilastikServerUrl}/lines`, {
@@ -103,7 +103,7 @@ export class ILAnnotation extends ILObject{
             throw Error(`Creating ${this.name} failed`)
         }
         const id = await response.json()
-        return new this(id)
+        return new this(id, color)
     }
 }
 

@@ -55,7 +55,31 @@ export class PixelClassificationWorkflow extends ILPixelClassificationWorkflow{
     }
 
     const predictionsUrl = this.pixelClassifier.getPredictionsUrl(this.raw_data)
-    const newPredictionsLayer = viewer.layerSpecification.getLayer(predictionsLabel, predictionsUrl);
+
+    let uniqueColors = new Map<String, Array<number>>()
+    for(let annotation of this.annotations.values()){
+      uniqueColors.set(String(annotation.color), annotation.color)
+    }
+
+    const colorLines = new Array<String>()
+    const colorsToMix = new Array<String>()
+    Array.from(uniqueColors.values()).forEach((color:Array<number>, colorIdx:number) => {
+      var colorLine = `vec3 color${colorIdx} = (vec3(${color[0]}, ${color[1]}, ${color[2]}) / 255.0) * toNormalized(getDataValue(${colorIdx}));`
+      colorLines.push(colorLine)
+      colorsToMix.push(`color${colorIdx}`)
+    })
+
+
+    const predictionsFragShader = `
+      void main() {
+        ${colorLines.join('\n')}
+
+        emitRGBA(
+          vec4(${colorsToMix.join(' + ')}, 0.4)
+        );
+      }
+    `
+    const newPredictionsLayer = viewer.layerSpecification.getLayer(predictionsLabel, {source: predictionsUrl, shader: predictionsFragShader});
     viewer.layerSpecification.add(newPredictionsLayer);
   }
 
