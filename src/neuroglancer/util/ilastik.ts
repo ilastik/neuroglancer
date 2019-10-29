@@ -95,7 +95,7 @@ export class ILAnnotation extends ILObject{
     private constructor(public id: String, public color: Array<number>){super();}
 
     public static async create(voxels: Array<{x:number, y:number, z:number}>, color: Array<number>, rawData: ILDataSource){
-        const response = await fetch(`${ILObject.ilastikServerUrl}/lines`, {
+        const response = await fetch(`${ILObject.ilastikServerUrl}/ng_annotation`, {
             method: 'POST',
             body: toFormData({voxels, color, raw_data: rawData.id})
         })
