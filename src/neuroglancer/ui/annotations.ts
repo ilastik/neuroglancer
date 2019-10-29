@@ -1172,6 +1172,10 @@ registerTool(
 registerTool(
     ANNOTATE_ELLIPSOID_TOOL_ID,
   (layer, options) => new PlaceSphereTool(<UserLayerWithAnnotations>layer, options));
+registerTool(
+    ANNOTATE_BRUSH_TOOL_ID,
+  (layer, options) => new PlaceBrushStrokeTool(<UserLayerWithAnnotations>layer, options));
+
 
 export interface UserLayerWithAnnotations extends UserLayer {
   annotationLayerState: WatchableRefCounted<AnnotationLayerState>;
