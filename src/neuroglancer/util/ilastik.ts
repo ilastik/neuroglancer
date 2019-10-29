@@ -150,7 +150,7 @@ export class ILPixelClassifier extends ILObject{
 
     public static async create(feature_extractors: Array<ILFeatureExtractor>, annotations: Array<ILAnnotation>){
         const data = {
-            feature_extractor: feature_extractors[0].id, //FIXME use all of them, but first fix the backend
+            feature_extractors: feature_extractors.map(fe => {return fe.id}),
             annotations: annotations.map(annotation => {return annotation.id})
         }
         const response = await fetch(`${ILObject.ilastikServerUrl}/pixel_classifier`, {
