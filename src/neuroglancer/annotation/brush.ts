@@ -27,6 +27,7 @@ import {GL} from 'neuroglancer/webgl/context';
 import {Buffer} from 'neuroglancer/webgl/buffer';
 import {ILAnnotation} from 'neuroglancer/util/ilastik'
 import {PixelClassificationWorkflow} from 'neuroglancer/pixel_classification'
+import {UserLayerWithAnnotations} from 'neuroglancer/ui/annotations'
 
 export class RenderHelper extends AnnotationRenderHelper {
   private shaderGetter = emitterDependentShaderGetter(this, this.gl, (builder: ShaderBuilder) => this.defineShader(builder));
@@ -107,7 +108,7 @@ export class BrushAnnotation implements Brush{
 
   private upstreamAnnotation: ILAnnotation|undefined
 
-  constructor(public readonly firstVoxel: vec3, color:vec3, public segments?: Uint64[], public id=''){
+  constructor(public readonly layer:UserLayerWithAnnotations, public readonly firstVoxel: vec3, color:vec3, public segments?: Uint64[], public id=''){
     const data = new Uint8Array(BrushAnnotation.NUM_SERIALIZED_BYTES)
     this.data = data
     this.numVoxels =   new Uint32Array (data.buffer, data.byteOffset,                                           1)

@@ -352,7 +352,14 @@ export function getPositionSummary(
       element.appendChild(document.createTextNode('±' + formatIntegerBounds(transformedRadii)));
       break;
     case AnnotationType.BRUSH:
+      const brushAnnotation = <BrushAnnotation>annotation
+      const color = brushAnnotation.getColor()
+      const cssColor = `rgba(${color[0] * 255}, ${color[1] * 255}, ${color[2] * 255}, 1)`
+      element.style.color = cssColor
       element.appendChild(makePointLinkWithTransform((<BrushAnnotation>annotation).firstVoxel));
+      element.addEventListener('click', () => {
+        brushAnnotation.layer.annotationColor.value = vec3.fromValues(color[0], color[1], color[2])
+      })
       break;
   }
 }
@@ -1004,7 +1011,7 @@ export class PlaceBrushStrokeTool extends TwoStepAnnotationTool {
     const currentPoint:vec3 = getMousePositionInAnnotationCoordinates(mouseState, annotationLayer);
     const segments = getSelectedAssocatedSegment(annotationLayer);
 
-    return new BrushAnnotation(currentPoint, this.getCurrentColor(), segments);
+    return new BrushAnnotation(this.layer, currentPoint, this.getCurrentColor(), segments);
   }
 
   getUpdatedAnnotation(
