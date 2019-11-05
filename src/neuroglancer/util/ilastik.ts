@@ -179,6 +179,8 @@ export class ILPixelClassificationWorkflow{
         if(this.annotations.size > 0 && this.featureExtractors.size > 0){
             this.pixelClassifier = await ILPixelClassifier.create(Array.from(this.featureExtractors.values()),
                                                                   Array.from(this.annotations.values()))
+        }else{
+            this.pixelClassifier = undefined;
         }
         return this.pixelClassifier
     }

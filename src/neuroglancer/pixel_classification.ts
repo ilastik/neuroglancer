@@ -46,12 +46,12 @@ export class PixelClassificationWorkflow extends ILPixelClassificationWorkflow{
     const layerManager = viewer.layerSpecification.layerManager;
     const predictionsLayer = layerManager.getLayerByName(predictionsLabel);
 
-    if(this.pixelClassifier === undefined){
-      return
-    }
-
     if(predictionsLayer !== undefined){
       layerManager.removeManagedLayer(predictionsLayer);
+    }
+
+    if(this.pixelClassifier === undefined){
+      return
     }
 
     const predictionsUrl = this.pixelClassifier.getPredictionsUrl(this.raw_data)
