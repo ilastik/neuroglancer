@@ -18,7 +18,7 @@
  * @file Support for rendering point annotations.
  */
 
-import {AnnotationType, AnnotationBase, typeHandlers} from 'neuroglancer/annotation';
+import {AnnotationType, AnnotationBase, typeHandlers, annotationTypes} from 'neuroglancer/annotation';
 import {AnnotationRenderContext, AnnotationRenderHelper, registerAnnotationTypeRenderHandler} from 'neuroglancer/annotation/type_handler';
 import {mat4, vec3} from 'neuroglancer/util/geom';
 import {emitterDependentShaderGetter, ShaderBuilder} from 'neuroglancer/webgl/shader';
@@ -243,9 +243,7 @@ typeHandlers.set(AnnotationType.BRUSH, {
   },
 });
 
-
-
-
+annotationTypes.push(AnnotationType.BRUSH)
 
 registerAnnotationTypeRenderHandler(AnnotationType.BRUSH, {
   bytes: BrushAnnotation.NUM_SERIALIZED_BYTES,

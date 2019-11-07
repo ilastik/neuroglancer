@@ -54,7 +54,6 @@ export const annotationTypes = [
   AnnotationType.LINE,
   AnnotationType.AXIS_ALIGNED_BOUNDING_BOX,
   AnnotationType.ELLIPSOID,
-  AnnotationType.BRUSH,
 ];
 
 export interface AnnotationBase {
