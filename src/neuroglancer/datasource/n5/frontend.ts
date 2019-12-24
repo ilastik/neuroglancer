@@ -23,7 +23,7 @@
  * https://github.com/bigdataviewer/bigdataviewer-core/blob/master/BDV%20N5%20format.md
  */
 
-import {makeDataBoundsBoundingBoxAnnotationSet} from 'neuroglancer/annotation';
+//import {makeDataBoundsBoundingBoxAnnotationSet} from 'neuroglancer/annotation';
 import {ChunkManager, WithParameters} from 'neuroglancer/chunk_manager/frontend';
 import {CoordinateSpace, makeCoordinateSpace, makeIdentityTransform} from 'neuroglancer/coordinate_transform';
 import {CompleteUrlOptions, DataSource, DataSourceProvider, GetDataSourceOptions} from 'neuroglancer/datasource';
@@ -106,7 +106,7 @@ export class MultiscaleVolumeChunkSource extends GenericMultiscaleVolumeChunkSou
           const scaleDownsamplingInfo = scalesDownsamplingInfo[i];
           const transform =
               createHomogeneousScaleMatrix(Float32Array, scaleDownsamplingInfo.downsamplingFactor);
-          return makeDefaultVolumeChunkSpecifications({
+          const res = makeDefaultVolumeChunkSpecifications({
                    rank,
                    chunkToMultiscaleTransform: transform,
                    dataType: scale.dataType,
@@ -125,6 +125,8 @@ export class MultiscaleVolumeChunkSource extends GenericMultiscaleVolumeChunkSou
                      }),
                      chunkToMultiscaleTransform: transform,
                    }));
+            console.log("SRCS", res);
+            return res;
         }));
   }
 }
@@ -204,7 +206,8 @@ function getIndividualAttributesJson(
                   }
                 })
                 .catch(e => {
-                  if (e instanceof HttpError && e.status === 404) {
+                  console.log(e);
+                  if (e instanceof HttpError && (e.status === 404 || e.status === 403)) {
                     if (required) return undefined;
                     return {};
                   }
@@ -380,6 +383,7 @@ export class N5DataSource extends DataSourceProvider {
           const scales = await getAllScales(options.chunkManager, multiscaleMetadata);
           const volume =
               new MultiscaleVolumeChunkSource(options.chunkManager, multiscaleMetadata, scales);
+            console.log("volume", volume);
           return {
             modelTransform: makeIdentityTransform(volume.modelSpace),
             subsources: [
@@ -389,15 +393,15 @@ export class N5DataSource extends DataSourceProvider {
                 url: undefined,
                 subsource: {volume},
               },
-              {
-                id: 'bounds',
-                default: true,
-                url: undefined,
-                subsource: {
-                  staticAnnotations:
-                      makeDataBoundsBoundingBoxAnnotationSet(multiscaleMetadata.modelSpace.bounds)
-                },
-              },
+              // {
+              //   id: 'bounds',
+              //   default: true,
+              //   url: undefined,
+              //   subsource: {
+              //     staticAnnotations:
+              //         makeDataBoundsBoundingBoxAnnotationSet(multiscaleMetadata.modelSpace.bounds)
+              //   },
+              // },
             ],
           };
         })

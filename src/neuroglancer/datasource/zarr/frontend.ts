@@ -22,11 +22,13 @@
  * https://zarr.readthedocs.io/en/stable/spec/v2.html
  */
 
-//import {makeDataBoundsBoundingBoxAnnotationSet} from 'neuroglancer/annotation';
+import {makeDataBoundsBoundingBoxAnnotationSet} from 'neuroglancer/annotation';
 import {ChunkManager, WithParameters} from 'neuroglancer/chunk_manager/frontend';
 import {CoordinateSpace, makeCoordinateSpace, makeIdentityTransform} from 'neuroglancer/coordinate_transform';
 import {CompleteUrlOptions, DataSource, DataSourceProvider, GetDataSourceOptions} from 'neuroglancer/datasource';
 import {VolumeChunkEncoding, VolumeChunkSourceParameters} from 'neuroglancer/datasource/zarr/base';
+import {decodeDataType} from 'neuroglancer/datasource/zarr/util';
+import {Endianness} from 'neuroglancer/util/endian';
 import {SliceViewSingleResolutionSource} from 'neuroglancer/sliceview/frontend';
 import {DataType, makeDefaultVolumeChunkSpecifications, VolumeSourceOptions, VolumeType} from 'neuroglancer/sliceview/volume/base';
 import {MultiscaleVolumeChunkSource as GenericMultiscaleVolumeChunkSource, VolumeChunkSource} from 'neuroglancer/sliceview/volume/frontend';
@@ -119,9 +121,8 @@ export class MultiscaleVolumeChunkSource extends GenericMultiscaleVolumeChunkSou
                        spec,
                        parameters: {
                          url: parseSpecialUrl(scaleDownsamplingInfo.url),
-                           encoding: scale.encoding,
-                           chunkSize: scale.chunkSize,
-
+                         encoding: scale.encoding,
+                         chunkSize: scale.chunkSize,
                        }
                      }),
                      chunkToMultiscaleTransform: transform,
@@ -141,13 +142,14 @@ interface MultiscaleMetadata {
 
 class ScaleMetadata {
   dataType: DataType;
+  endianess: Endianness;
   encoding: VolumeChunkEncoding;
   size: Float32Array;
   chunkSize: Uint32Array;
 
   constructor(obj: any) {
     verifyObject(obj);
-      this.dataType = verifyObjectProperty(obj, 'dtype', () => DataType.UINT8);
+    [this.dataType, this.endianess] = verifyObjectProperty(obj, 'dtype', (x) => decodeDataType(x));
     this.size = Float32Array.from(
         verifyObjectProperty(obj, 'shape', x => parseArray(x, verifyPositiveInt)));
     this.chunkSize = verifyObjectProperty(
@@ -391,15 +393,15 @@ export class ZarrDataSource extends DataSourceProvider {
                 url: undefined,
                 subsource: {volume},
               },
-              // {
-              //   id: 'bounds',
-              //   default: true,
-              //   url: undefined,
-              //   subsource: {
-              //     staticAnnotations:
-              //         makeDataBoundsBoundingBoxAnnotationSet(multiscaleMetadata.modelSpace.bounds)
-              //   },
-              // },
+              {
+                id: 'bounds',
+                default: true,
+                url: undefined,
+                subsource: {
+                  staticAnnotations:
+                      makeDataBoundsBoundingBoxAnnotationSet(multiscaleMetadata.modelSpace.bounds)
+                },
+              },
             ],
           };
         })
