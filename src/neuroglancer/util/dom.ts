@@ -32,3 +32,37 @@ export function removeFromParent(element: HTMLElement) {
   }
   return false;
 }
+
+export function createElement({tagName, parentElement, innerHTML, cssClasses, click}:
+    {tagName:string, parentElement:HTMLElement, innerHTML?:string, cssClasses?:Array<string>, click?(event: any): void}
+): HTMLElement{
+    const element = document.createElement(tagName);
+    parentElement.appendChild(element)
+    if(innerHTML !== undefined){
+        element.innerHTML = innerHTML
+    }
+    (cssClasses || []).forEach(klass => {
+        element.classList.add(klass)
+    })
+    if(click !== undefined){
+        element.addEventListener('click', click)
+    }
+    return element
+}
+
+export function createInput({inputType, parentElement, value, name, disabled=false, click} :
+    {inputType: string, parentElement:HTMLElement, value?:string, name?:string, disabled?:boolean, click?(event: any): void}
+): HTMLInputElement{
+    const input = <HTMLInputElement>createElement({tagName:'input', parentElement, click})
+    input.type = inputType;
+    if(value !== undefined){
+        input.value = value
+    }
+    if(name !== undefined){
+        input.name = name
+    }
+    input.disabled = disabled
+    return input
+}
+
+

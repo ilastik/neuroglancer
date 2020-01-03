@@ -47,6 +47,8 @@ import {RangeWidget} from 'neuroglancer/widget/range';
 import {StackView, Tab} from 'neuroglancer/widget/tab_view';
 import {makeTextIconButton} from 'neuroglancer/widget/text_icon_button';
 import {Uint64EntryWidget} from 'neuroglancer/widget/uint64_entry_widget';
+import {PixelClassificationWorkflow} from 'neuroglancer/pixel_classification'
+import {createInput} from 'neuroglancer/util/dom'
 
 type AnnotationIdAndPart = {
   id: string,
@@ -472,6 +474,10 @@ export class AnnotationLayerView extends Tab {
         this.layer.tool.value = new PlaceBrushStrokeTool(this.layer, {});
       });
       toolbox.appendChild(brushButton);
+
+      createInput({inputType: 'button', value: 'Features', parentElement: toolbox, click: async () => {
+        (await PixelClassificationWorkflow.getInstance()).showFeatureSelection(this.element)
+      }})
     }
     this.element.appendChild(toolbox);
 

@@ -78,7 +78,8 @@ abstract class ILObject{
     }
 }
 
-abstract class ILFeatureExtractor extends ILObject{}
+export abstract class ILFeatureExtractor extends ILObject{
+}
 
 abstract class ILSigmaFeatureExtractor extends ILFeatureExtractor{
     public readonly sigma: number
@@ -89,6 +90,7 @@ abstract class ILSigmaFeatureExtractor extends ILFeatureExtractor{
 }
 
 export class ILGaussianSmoothing extends ILSigmaFeatureExtractor{
+    public static displayName = "Gaussian Smoothing"
     public static async create(sigma: number){
         var id = await super._create({sigma}, this.endpointName)
         return new this(id, sigma)
@@ -105,6 +107,7 @@ abstract class ILScaleFeatureExtractor extends ILFeatureExtractor{
 }
 
 export class ILHessianOfGaussianEigenvalues extends ILScaleFeatureExtractor{
+    public static displayName = "Hessian Of Gaussian Eigenvalues"
     public static async create(scale: number){
         var id = await super._create({scale}, this.endpointName)
         return new this(id, scale)
@@ -182,9 +185,22 @@ export class ILPixelClassificationWorkflow{
         return this.pixelClassifier
     }
 
-    public async addFeatureExtractor(extractor: ILFeatureExtractor){
+    public clearFeatureExtractors(){
+        this.featureExtractors.clear()
+    }
+
+    public async addFeatureExtractor(extractor: ILFeatureExtractor, updateClassifier=true){
         this.featureExtractors.set(extractor.id, extractor)
-        return await this.tryUpdatePixelClassifier()
+        if(updateClassifier){
+            this.tryUpdatePixelClassifier()
+        }
+    }
+
+    public async addFeatureExtractors(extractors: Array<ILFeatureExtractor>){
+      for(let f of extractors){
+        this.addFeatureExtractor(f, false)
+      }
+      return this.tryUpdatePixelClassifier()
     }
 
     public async addAnnotation(annotation:ILNgAnnotation){
