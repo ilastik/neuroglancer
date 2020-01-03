@@ -43,133 +43,130 @@ export function toFormData(payload: object|Map<string, any>): FormData{
 }
 
 abstract class ILObject{
-    public static readonly ilastikServerUrl: String = 'http://localhost:5000'; //TODO make this configurable
-    public readonly id:String;
+    public static readonly ilastikServerUrl: string = 'http://localhost:5000'; //TODO make this configurable
+    protected constructor(public readonly id:string){}
+
+    public static get endpointName() : string{
+        return this.name.replace(/^IL/, '')
+    }
+
+    public get endpointName() : string{
+        return this.constructor.name.replace(/^IL/, '')
+    }
+
+    protected static async _create(payload: any, endpointName: string): Promise<any>{
+        const response = await fetch(`${ILObject.ilastikServerUrl}/${endpointName}/`, {
+              method: 'POST',
+              body: toFormData(payload)
+        })
+        if(!response.ok){
+            throw Error(`Creating ${endpointName} failed`)
+        }
+        return await response.json()
+    }
 
     public async destroy(){
         const response = await fetch(
-            `${ILObject.ilastikServerUrl}/${this.constructor.name.replace(/^IL/, '')}/${this.id}`,
+            `${ILObject.ilastikServerUrl}/${this.endpointName}/${this.id}`,
              {method: 'DELETE'}
         )
         if(!response.ok){
-            throw Error(`Destroying annotation ${this.id} failed`)
+            throw Error(`Destroying ${this.constructor.name} ${this.id} failed`)
         }
         const payload = await response.json()
         return payload;
     }
 }
 
-abstract class ILFeatureExtractor extends ILObject{
-    protected constructor(public sigma: number, public id: String){super()}
-}
+abstract class ILFeatureExtractor extends ILObject{}
 
-export class ILGaussianSmoothing extends ILFeatureExtractor{
-    public static async create(sigma: number){
-        const response = await fetch(`${ILObject.ilastikServerUrl}/gaussian_smoothing/`, {
-              method: 'POST',
-              body: toFormData({sigma})
-        })
-        if(!response.ok){
-            throw Error(`Creating ${this.name} failed`)
-        }
-        const id = await response.json()
-        return new this(sigma, id)
+abstract class ILSigmaFeatureExtractor extends ILFeatureExtractor{
+    public readonly sigma: number
+    protected constructor(id: string, sigma: number){
+        super(id)
+        this.sigma = sigma
     }
 }
 
-export class ILHessianOfGaussian extends ILFeatureExtractor{
+export class ILGaussianSmoothing extends ILSigmaFeatureExtractor{
     public static async create(sigma: number){
-        const response = await fetch(`${ILObject.ilastikServerUrl}/hessian_of_gaussian/`, {
-              method: 'POST',
-              body: toFormData({sigma})
-        })
-        if(!response.ok){
-            throw Error(`Creating ${this.name} failed`)
-        }
-        const id = await response.json()
-        return new this(sigma, id)
+        var id = await super._create({sigma}, this.endpointName)
+        return new this(id, sigma)
     }
 }
 
-export class ILAnnotation extends ILObject{
-    private constructor(public id: String, public color: Array<number>){super();}
 
-    public static async create(voxels: Array<{x:number, y:number, z:number}>, color: Array<number>, rawData: ILDataSource){
-        const response = await fetch(`${ILObject.ilastikServerUrl}/ng_annotation`, {
-            method: 'POST',
-            body: toFormData({voxels, color, raw_data: rawData.id})
-        })
-        if(!response.ok){
-            throw Error(`Creating ${this.name} failed`)
-        }
-        const id = await response.json()
+abstract class ILScaleFeatureExtractor extends ILFeatureExtractor{
+    public readonly scale: number
+    protected constructor(id: string, scale: number){
+        super(id)
+        this.scale = scale
+    }
+}
+
+export class ILHessianOfGaussianEigenvalues extends ILScaleFeatureExtractor{
+    public static async create(scale: number){
+        var id = await super._create({scale}, this.endpointName)
+        return new this(id, scale)
+    }
+}
+
+export class ILNgAnnotation extends ILObject{
+    private constructor(id: string, public readonly color: Array<number>){
+        super(id);
+    }
+
+    public static async create(
+        voxels: Array<{x:number, y:number, z:number}>, color: Array<number>, rawData: ILDataSource
+    ): Promise<ILNgAnnotation>{
+        var id =  await super._create({voxels, color, raw_data: rawData.id}, this.endpointName)
         return new this(id, color)
     }
 }
 
 export class ILDataSource extends ILObject{
-    private constructor(public url: String, public id: String){super();}
+    private constructor(id: string, public readonly url: string){super(id);}
 
-    public static async retrieve(id: String){
+    public static async retrieve(id: string){
         const response = await fetch(`${ILObject.ilastikServerUrl}/data_source/${id}`, {method: 'GET'})
         if(!response.ok){
             throw Error(`Creating ${this.name} failed`)
         }
         const datasource_data = await response.json()
-        return new this(datasource_data['url'], id);
+        return new this(id, datasource_data['url']);
     }
 
-    public static async create(url: String){
-        const response = await fetch(`${ILObject.ilastikServerUrl}/data_source`, {
-            method: 'POST',
-            body: toFormData({url})
-        })
-        if(!response.ok){
-            throw Error(`Creating ${this.name} failed`)
-        }
-        const id = await response.json()
-        return new this(url, id);
+    public static async create(url: string): Promise<ILDataSource>{
+        const id = await super._create({url}, this.endpointName)
+        return new this(id, url)
     }
 }
 
 export class ILPixelClassifier extends ILObject{
-    private constructor(private feature_extractors: Array<ILFeatureExtractor>,
-                        private annotations: Array<ILAnnotation>,
-                        public readonly id: String
+    private constructor(id: string,
+                        public readonly feature_extractors: Array<ILFeatureExtractor>,
+                        public readonly annotations: Array<ILNgAnnotation>,
     ){
-        super();
+        super(id);
     }
 
-    public getFeatureExtractors(): Array<ILFeatureExtractor>{
-        return this.feature_extractors.slice(0);
-    }
-
-    public getAnnotations(): Array<ILAnnotation>{
-        return this.annotations.slice(0);
-    }
-
-    public static async create(feature_extractors: Array<ILFeatureExtractor>, annotations: Array<ILAnnotation>){
+    public static async create(feature_extractors: Array<ILFeatureExtractor>, annotations: Array<ILNgAnnotation>){
         const data = {
             feature_extractors: feature_extractors.map(fe => {return fe.id}),
             annotations: annotations.map(annotation => {return annotation.id})
         }
-        const response = await fetch(`${ILObject.ilastikServerUrl}/pixel_classifier`, {
-            method: 'POST',
-            body: toFormData(data)
-        })
-        const id = await response.json()
-        return new this(feature_extractors, annotations, id);
+        const id = await super._create(data, this.endpointName)
+        return new this(id, feature_extractors, annotations)
     }
 
     public getPredictionsUrl(datasource: ILDataSource): String{
         return `precomputed://${ILObject.ilastikServerUrl}/predictions/${this.id}/${datasource.id}`
     }
-
 }
 
 export class ILPixelClassificationWorkflow{
     protected featureExtractors = new Map<String, ILFeatureExtractor>()
-    protected annotations = new Map<String, ILAnnotation>()
+    protected annotations = new Map<String, ILNgAnnotation>()
     protected pixelClassifier: ILPixelClassifier|undefined
 
     constructor(public raw_data:ILDataSource){
@@ -190,12 +187,12 @@ export class ILPixelClassificationWorkflow{
         return await this.tryUpdatePixelClassifier()
     }
 
-    public async addAnnotation(annotation:ILAnnotation){
+    public async addAnnotation(annotation:ILNgAnnotation){
         this.annotations.set(annotation.id, annotation)
         return await this.tryUpdatePixelClassifier()
     }
 
-    public async removeAnnotation(annotation:ILAnnotation){
+    public async removeAnnotation(annotation:ILNgAnnotation){
         this.annotations.delete(annotation.id)
         await annotation.destroy()
         return await this.tryUpdatePixelClassifier()

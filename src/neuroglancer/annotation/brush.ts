@@ -25,7 +25,7 @@ import {emitterDependentShaderGetter, ShaderBuilder} from 'neuroglancer/webgl/sh
 import {Uint64} from 'neuroglancer/util/uint64';
 import {GL} from 'neuroglancer/webgl/context';
 import {Buffer} from 'neuroglancer/webgl/buffer';
-import {ILAnnotation} from 'neuroglancer/util/ilastik'
+import {ILNgAnnotation} from 'neuroglancer/util/ilastik'
 import {PixelClassificationWorkflow} from 'neuroglancer/pixel_classification'
 import {UserLayerWithAnnotations} from 'neuroglancer/ui/annotations'
 
@@ -106,7 +106,7 @@ export class BrushAnnotation implements Brush{
   private voxelCoords: Float32Array
   private color: Float32Array
 
-  private upstreamAnnotation: ILAnnotation|undefined
+  private upstreamAnnotation: ILNgAnnotation|undefined
 
   constructor(public readonly layer:UserLayerWithAnnotations, public readonly firstVoxel: vec3, color:vec3, public segments?: Uint64[], public id=''){
     const data = new Uint8Array(BrushAnnotation.NUM_SERIALIZED_BYTES)
@@ -212,7 +212,7 @@ export class BrushAnnotation implements Brush{
     const dataSource = await PixelClassificationWorkflow.getFirstLayerDataSource()
     const jsonData = this.toJsonData()
 
-    this.upstreamAnnotation = await ILAnnotation.create(jsonData.voxels, jsonData.color, dataSource)
+    this.upstreamAnnotation = await ILNgAnnotation.create(jsonData.voxels, jsonData.color, dataSource)
 
     pixelWorkflow.addAnnotation(this.upstreamAnnotation)
   }

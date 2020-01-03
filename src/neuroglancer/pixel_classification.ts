@@ -1,6 +1,6 @@
 import {Viewer} from 'neuroglancer/viewer';
 import {ManagedUserLayerWithSpecification} from 'neuroglancer/layer_specification'
-import {ILDataSource, ILPixelClassifier, ILPixelClassificationWorkflow, ILHessianOfGaussian, ILGaussianSmoothing} from 'neuroglancer/util/ilastik'
+import {ILDataSource, ILPixelClassifier, ILPixelClassificationWorkflow, ILHessianOfGaussianEigenvalues, ILGaussianSmoothing} from 'neuroglancer/util/ilastik'
 
 
 //window.addEventListener('click', event => {
@@ -19,7 +19,7 @@ export class PixelClassificationWorkflow extends ILPixelClassificationWorkflow{
       const activeDataSource = await this.getFirstLayerDataSource()
       this.instance = new PixelClassificationWorkflow(activeDataSource)
       this.instance.addFeatureExtractor(await ILGaussianSmoothing.create(0.5))
-      this.instance.addFeatureExtractor(await ILHessianOfGaussian.create(0.5))
+      this.instance.addFeatureExtractor(await ILHessianOfGaussianEigenvalues.create(0.5))
     }
     return this.instance
   }
