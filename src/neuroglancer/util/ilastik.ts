@@ -1,3 +1,5 @@
+import {ilastikApiUrl} from 'neuroglancer/util/generated_ilastikApiUrl'
+
 function isLeafValue(value: any): boolean{
     if(['number', 'string', 'boolean'].includes(typeof value) || value === null){
         return true;
@@ -43,7 +45,6 @@ export function toFormData(payload: object|Map<string, any>): FormData{
 }
 
 abstract class ILObject{
-    public static readonly ilastikServerUrl: string = 'http://localhost:5000'; //TODO make this configurable
     protected constructor(public readonly id:string){}
 
     public static get endpointName() : string{
@@ -55,7 +56,7 @@ abstract class ILObject{
     }
 
     protected static async _create(payload: any, endpointName: string): Promise<any>{
-        const response = await fetch(`${ILObject.ilastikServerUrl}/${endpointName}/`, {
+        const response = await fetch(`${ilastikApiUrl}/${endpointName}/`, {
               method: 'POST',
               body: toFormData(payload)
         })
@@ -67,7 +68,7 @@ abstract class ILObject{
 
     public async destroy(){
         const response = await fetch(
-            `${ILObject.ilastikServerUrl}/${this.endpointName}/${this.id}`,
+            `${ilastikApiUrl}/${this.endpointName}/${this.id}`,
              {method: 'DELETE'}
         )
         if(!response.ok){
@@ -162,7 +163,7 @@ export class ILDataSource extends ILObject{
     private constructor(id: string, public readonly url: string){super(id);}
 
     public static async retrieve(id: string){
-        const response = await fetch(`${ILObject.ilastikServerUrl}/data_source/${id}`, {method: 'GET'})
+        const response = await fetch(`${ilastikApiUrl}/data_source/${id}`, {method: 'GET'})
         if(!response.ok){
             throw Error(`Creating ${this.name} failed`)
         }
@@ -194,7 +195,7 @@ export class ILPixelClassifier extends ILObject{
     }
 
     public getPredictionsUrl(datasource: ILDataSource): String{
-        return `precomputed://${ILObject.ilastikServerUrl}/predictions/${this.id}/${datasource.id}`
+        return `precomputed://${ilastikApiUrl}/predictions/${this.id}/${datasource.id}`
     }
 }
 

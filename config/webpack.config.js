@@ -16,6 +16,17 @@
 
 'use strict';
 
+const fs= require('fs')
+
+fs.writeFile(
+    'src/neuroglancer/util/generated_ilastikApiUrl.ts',
+    `
+        const ilastikApiUrl = '${process.env["ILASTIK_API_URL"] || "http://localhost:5000"}' //generated at ${__filename}
+        export {ilastikApiUrl} //generated at ${__filename}
+    `,
+    () => {}
+)
+
 const path = require('path');
 const webpack_helpers = require('./webpack_helpers');
 module.exports = (env, argv) => {

@@ -7,3 +7,4 @@
 __pycache__
 *.sw[pmn]
 .vscode
+src/neuroglancer/util/generated_ilastikApiUrl.ts
