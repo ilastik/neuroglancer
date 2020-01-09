@@ -90,13 +90,18 @@ abstract class ILSigmaFeatureExtractor extends ILFeatureExtractor{
 }
 
 export class ILGaussianSmoothing extends ILSigmaFeatureExtractor{
-    public static displayName = "Gaussian Smoothing"
     public static async create(sigma: number){
         var id = await super._create({sigma}, this.endpointName)
         return new this(id, sigma)
     }
 }
 
+export class ILGaussianGradientMagnitude extends ILSigmaFeatureExtractor{
+    public static async create(sigma: number){
+        var id = await super._create({sigma}, this.endpointName)
+        return new this(id, sigma)
+    }
+}
 
 abstract class ILScaleFeatureExtractor extends ILFeatureExtractor{
     public readonly scale: number
@@ -107,10 +112,36 @@ abstract class ILScaleFeatureExtractor extends ILFeatureExtractor{
 }
 
 export class ILHessianOfGaussianEigenvalues extends ILScaleFeatureExtractor{
-    public static displayName = "Hessian Of Gaussian Eigenvalues"
     public static async create(scale: number){
         var id = await super._create({scale}, this.endpointName)
         return new this(id, scale)
+    }
+}
+
+export class ILLaplacianOfGaussian extends ILScaleFeatureExtractor{
+    public static async create(scale: number){
+        var id = await super._create({scale}, this.endpointName)
+        return new this(id, scale)
+    }
+}
+
+export class ILDifferenceOfGaussians extends ILFeatureExtractor{
+    protected constructor(id: string, public readonly sigma0: number, public readonly sigma1: number){
+        super(id)
+    }
+    public static async create(sigma0: number, sigma1: number){
+        var id = await super._create({sigma0, sigma1}, this.endpointName)
+        return new this(id, sigma0, sigma1)
+    }
+}
+
+export class ILStructureTensorEigenvalues extends ILFeatureExtractor{
+    protected constructor(id: string, public readonly innerScale: number, public readonly outerScale: number){
+        super(id)
+    }
+    public static async create(innerScale: number, outerScale: number){
+        var id = await super._create({innerScale, outerScale}, this.endpointName)
+        return new this(id, innerScale, outerScale)
     }
 }
 

@@ -1,7 +1,9 @@
 import {Viewer} from 'neuroglancer/viewer';
 import {ManagedUserLayerWithSpecification} from 'neuroglancer/layer_specification'
 import {ILDataSource, ILPixelClassifier, ILPixelClassificationWorkflow} from 'neuroglancer/util/ilastik'
-import {ILFeatureExtractor, ILHessianOfGaussianEigenvalues, ILGaussianSmoothing} from 'neuroglancer/util/ilastik'
+import {ILFeatureExtractor, ILGaussianSmoothing, ILGaussianGradientMagnitude} from 'neuroglancer/util/ilastik'
+import {ILDifferenceOfGaussians, ILHessianOfGaussianEigenvalues, ILLaplacianOfGaussian} from 'neuroglancer/util/ilastik'
+import {ILStructureTensorEigenvalues} from 'neuroglancer/util/ilastik'
 import {createElement, createInput, removeFromParent} from 'neuroglancer/util/dom'
 
 
@@ -26,20 +28,25 @@ export class FeatureSelectorPopup{
     this.featuresWindow = document.createElement("div")
     this.featuresWindow.style.display = "none"
     this.featuresWindow.style.backgroundColor = "#252525"
+    this.featuresWindow.style.overflow = "auto"
 
 
     const column_values = [0.3, 0.7, 1.0, 1.6, 3.5, 6.0, 10.0]
     const featureCreators = new Map<string, (value: number) => Promise<ILFeatureExtractor>>([
-      ["Gaussian Smoothing", (value) => {return ILGaussianSmoothing.create(value)}],
+      ["Gaussian Smoothing",              (value) => {return ILGaussianSmoothing.create(value)}],
+      ["Gaussian Gradient Magnitude",     (value) => {return ILGaussianGradientMagnitude.create(value)}],
+      ["Difference Of Gaussians",         (value) => {return ILDifferenceOfGaussians.create(value, value * 0.66)}],
       ["Hessian Of Gaussian Eigenvalues", (value) => {return ILHessianOfGaussianEigenvalues.create(value)}],
+      ["Laplacian Of Gaussian",           (value) => {return ILLaplacianOfGaussian.create(value)}],
+      ["Structure Tensor Eigenvalues",    (value) => {return ILStructureTensorEigenvalues.create(value, value * 0.5)}],
     ])
 
     const table = createElement({tagName: 'table', parentElement: this.featuresWindow})
     var tr = createElement({tagName: 'tr', parentElement: table})
 
-    createElement({tagName: 'th', parentElement: tr})
+    createElement({tagName: 'th', innerHTML: 'Feature / sigma', parentElement: tr})
     for(let val of column_values){
-      createElement({tagName: 'th', innerHTML: val.toString(), parentElement: tr})
+      createElement({tagName: 'th', innerHTML: val.toFixed(1), parentElement: tr})
     }
 
     const featureMatrix = new Map<string, Map<number, ILFeatureExtractor>>()
