@@ -184,7 +184,7 @@ function getAllScales(chunkManager: ChunkManager, url: string, topLevelMetadata:
     Promise<(ScaleMetadata | undefined)[]> {
   return Promise.all(topLevelMetadata.scales.map((_scale, i) => {
     return getScaleMetadata(chunkManager, `${url}/s${i}/attributes.json`).catch(e => {
-      if (e instanceof HttpError && e.status === 404) {
+      if (e instanceof HttpError) {
         return undefined;
       }
       throw e;
