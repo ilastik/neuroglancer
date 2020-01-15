@@ -337,6 +337,13 @@ function getMultiscaleMetadata(url: string, attributes: any): MultiscaleMetadata
   for (let i = 0; i < rank; ++i) {
     scales[i] = scaleByExp10(scales[i], units[i].exponent);
   }
+
+  let channelIdx = axes.indexOf("c");
+  if (channelIdx !== -1) {
+      scales[channelIdx] = 1;
+      axes[channelIdx] = "c^";
+      units[channelIdx] = {unit: "", exponent: 1};
+  }
   const modelSpace = makeCoordinateSpace({
     rank,
     valid: true,
