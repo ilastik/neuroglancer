@@ -280,7 +280,7 @@ function getMultiscaleMetadata(url: string, attributes: any): MultiscaleMetadata
   let axes = verifyOptionalObjectProperty(attributes, 'axes', x => {
     const names = parseArray(x, verifyString);
     rank = verifyRank(rank, names.length);
-    return names;
+    return names.map((axis) => axis.toLowerCase());
   });
   let units = verifyOptionalObjectProperty(attributes, 'units', x => {
     const units = parseArray(x, unitFromJson);
