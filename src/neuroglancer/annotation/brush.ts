@@ -91,9 +91,7 @@ export class BrushAnnotation implements Brush{
   type: AnnotationType.BRUSH = AnnotationType.BRUSH;
   public description = '';
 
-  public static readonly VOXEL_DISTANCE_THREASHOLD = 10
-
-  public static readonly POINTS_PER_STROKE = 1000;
+  public static readonly POINTS_PER_STROKE = 2000;
   public static readonly COORDS_PER_POINT = 3;
   public static readonly BYTES_PER_COORD = 4; //float takes 4 bytes
   public static readonly BYTES_FOR_POINTS = BrushAnnotation.POINTS_PER_STROKE * BrushAnnotation.COORDS_PER_POINT * BrushAnnotation.BYTES_PER_COORD
@@ -174,10 +172,6 @@ export class BrushAnnotation implements Brush{
       const lastVoxel = this.getVoxel(this.getNumVoxels() - 1)
       if(vec3.equals(lastVoxel, roundedCoordsVoxel)){
         console.log(`Discarding repeated voxel ${roundedCoordsVoxel}`)
-        return
-      }
-      if(vec3.distance(lastVoxel, roundedCoordsVoxel) > BrushAnnotation.VOXEL_DISTANCE_THREASHOLD){
-        console.log(`Discarding voxel that is too far from the previous one: ${roundedCoordsVoxel} -- previous was ${lastVoxel}`)
         return
       }
     }

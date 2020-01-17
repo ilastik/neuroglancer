@@ -1025,6 +1025,10 @@ export class PlaceBrushStrokeTool extends TwoStepAnnotationTool {
       annotationLayer: AnnotationLayerState)
   {
     const currentPoint = getMousePositionInAnnotationCoordinates(mouseState, annotationLayer);
+    if(currentPoint[0] == 0 && currentPoint[1] == 0 && currentPoint[2] == 1){
+      //console.log("Discarding buggy spurious voxel")
+      return oldAnnotation
+    }
     const segments = oldAnnotation.segments;
     if (segments !== undefined && segments.length > 0) {
       segments.length = 1;
