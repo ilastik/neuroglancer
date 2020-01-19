@@ -159,8 +159,23 @@ export class ILNgAnnotation extends ILObject{
     }
 }
 
+export class ILShape5D{
+    public readonly x: number;
+    public readonly y: number;
+    public readonly z: number;
+    public readonly t: number;
+    public readonly c: number;
+    constructor({x, y, z, t, c}: {x: number, y: number, z: number, t: number, c: number}){
+        this.x = x;
+        this.y = y;
+        this.z = z;
+        this.t = t;
+        this.c = c;
+    }
+}
+
 export class ILDataSource extends ILObject{
-    private constructor(id: string, public readonly url: string){super(id);}
+    private constructor(id: string, public readonly url: string, public readonly full_shape: ILShape5D){super(id);}
 
     public static async retrieve(id: string){
         const response = await fetch(`${ilastikApiUrl}/data_source/${id}`, {method: 'GET'})
@@ -168,12 +183,7 @@ export class ILDataSource extends ILObject{
             throw Error(`Creating ${this.name} failed`)
         }
         const datasource_data = await response.json()
-        return new this(id, datasource_data['url']);
-    }
-
-    public static async create(url: string): Promise<ILDataSource>{
-        const id = await super._create({url}, this.endpointName)
-        return new this(id, url)
+        return new this(id, datasource_data['url'], new ILShape5D(datasource_data['full_shape']));
     }
 }
 

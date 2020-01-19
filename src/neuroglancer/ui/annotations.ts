@@ -23,6 +23,7 @@ import './annotations.css';
 import debounce from 'lodash/debounce';
 import {Annotation, AnnotationReference, AnnotationType, AxisAlignedBoundingBox, Ellipsoid, getAnnotationTypeHandler, Line} from 'neuroglancer/annotation';
 import {BrushAnnotation} from 'neuroglancer/annotation/brush';
+import {ILDataSource} from 'neuroglancer/util/ilastik'
 import {AnnotationLayer, AnnotationLayerState, PerspectiveViewAnnotationLayer, SliceViewAnnotationLayer} from 'neuroglancer/annotation/frontend';
 import {DataFetchSliceViewRenderLayer, MultiscaleAnnotationSource} from 'neuroglancer/annotation/frontend_source';
 import {setAnnotationHoverStateFromMouseState} from 'neuroglancer/annotation/selection';
@@ -470,8 +471,9 @@ export class AnnotationLayerView extends Tab {
       const brushButton = document.createElement('button');
       brushButton.textContent = getAnnotationTypeHandler(AnnotationType.BRUSH).icon;
       brushButton.title = 'Annotate with brush strokes';
-      brushButton.addEventListener('click', () => {
-        this.layer.tool.value = new PlaceBrushStrokeTool(this.layer, {});
+      brushButton.addEventListener('click', async () => {
+        var ds = await PixelClassificationWorkflow.getFirstLayerDataSource()
+        this.layer.tool.value = new PlaceBrushStrokeTool(this.layer, {}, ds);
       });
       toolbox.appendChild(brushButton);
 
@@ -1005,6 +1007,10 @@ abstract class TwoStepAnnotationTool extends PlaceAnnotationTool {
 }
 
 export class PlaceBrushStrokeTool extends TwoStepAnnotationTool {
+  constructor(public layer: UserLayerWithAnnotations, options: any, public readonly raw_datasource: ILDataSource) {
+    super(layer, options)
+  }
+
   get description() {
     return `annotate using brush strokes`;
   }
@@ -1025,6 +1031,16 @@ export class PlaceBrushStrokeTool extends TwoStepAnnotationTool {
       annotationLayer: AnnotationLayerState)
   {
     const currentPoint = getMousePositionInAnnotationCoordinates(mouseState, annotationLayer);
+
+    if((currentPoint[0] == 0 || currentPoint[0] == this.raw_datasource.full_shape.x) ||
+       (currentPoint[1] == 0 || currentPoint[1] == this.raw_datasource.full_shape.y) ||
+       (currentPoint[2] == 0 || currentPoint[2] == this.raw_datasource.full_shape.z)
+    ){
+      console.log("Discarding buggy spurious voxel:")
+      console.log(currentPoint)
+      return oldAnnotation
+    }
+
     const segments = oldAnnotation.segments;
     if (segments !== undefined && segments.length > 0) {
       segments.length = 1;
@@ -1178,9 +1194,9 @@ registerTool(
 registerTool(
     ANNOTATE_ELLIPSOID_TOOL_ID,
   (layer, options) => new PlaceSphereTool(<UserLayerWithAnnotations>layer, options));
-registerTool(
-    ANNOTATE_BRUSH_TOOL_ID,
-  (layer, options) => new PlaceBrushStrokeTool(<UserLayerWithAnnotations>layer, options));
+//registerTool(
+//    ANNOTATE_BRUSH_TOOL_ID,
+//  (layer, options) => new PlaceBrushStrokeTool(<UserLayerWithAnnotations>layer, options));
 
 
 export interface UserLayerWithAnnotations extends UserLayer {
