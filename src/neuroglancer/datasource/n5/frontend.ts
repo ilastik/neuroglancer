@@ -125,7 +125,6 @@ export class MultiscaleVolumeChunkSource extends GenericMultiscaleVolumeChunkSou
                      }),
                      chunkToMultiscaleTransform: transform,
                    }));
-            console.log("SRCS", res);
             return res;
         }));
   }
@@ -206,7 +205,6 @@ function getIndividualAttributesJson(
                   }
                 })
                 .catch(e => {
-                  console.log(e);
                   if (e instanceof HttpError) {
                     if (required) return undefined;
                     return {};
@@ -390,7 +388,6 @@ export class N5DataSource extends DataSourceProvider {
           const scales = await getAllScales(options.chunkManager, multiscaleMetadata);
           const volume =
               new MultiscaleVolumeChunkSource(options.chunkManager, multiscaleMetadata, scales);
-            console.log("volume", volume);
           return {
             modelTransform: makeIdentityTransform(volume.modelSpace),
             subsources: [
