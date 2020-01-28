@@ -110,7 +110,8 @@ export function getDefaultSliceViewPanelBindings() {
     defaultSliceViewPanelBindings = EventActionMap.fromObject(
         {
           'at:mousedown0': {action: 'translate-via-mouse-drag', stopPropagation: true},
-          'at:shift+mousedown0': {action: 'rotate-via-mouse-drag', stopPropagation: true},
+          // 'at:shift+mousedown0': {action: 'rotate-via-mouse-drag', stopPropagation: true},
+          // XXX: Conditionally reenable rotation for 3D datasets
           'at:touchtranslate1': 'translate-z-via-touchtranslate',
         },
         {parents: [[getDefaultRenderedDataPanelBindings(), Number.NEGATIVE_INFINITY]]});
