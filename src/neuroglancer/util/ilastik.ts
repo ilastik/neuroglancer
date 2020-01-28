@@ -175,7 +175,7 @@ export class ILShape5D{
 }
 
 export class ILDataSource extends ILObject{
-    private constructor(id: string, public readonly url: string, public readonly full_shape: ILShape5D){super(id);}
+    private constructor(id: string, public readonly url: string, public readonly shape: ILShape5D){super(id);}
 
     public static async retrieve(id: string){
         const response = await fetch(`${ilastikApiUrl}/data_source/${id}`, {method: 'GET'})
@@ -183,7 +183,7 @@ export class ILDataSource extends ILObject{
             throw Error(`Creating ${this.name} failed`)
         }
         const datasource_data = await response.json()
-        return new this(id, datasource_data['url'], new ILShape5D(datasource_data['full_shape']));
+        return new this(id, datasource_data['url'], new ILShape5D(datasource_data['shape']));
     }
 }
 
