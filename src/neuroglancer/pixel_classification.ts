@@ -24,7 +24,7 @@ export class FeatureSelectorPopup{
     this.featuresWindow.style.display = 'none'
   }
 
-  public constructor(resolve: (features: Array<ILFeatureExtractor>) => any){
+  public constructor(resolve: (features: Array<ILFeatureExtractor>) => any, num_input_channels: number){
     this.featuresWindow = document.createElement("div")
     this.featuresWindow.style.display = "none"
     this.featuresWindow.style.backgroundColor = "#252525"
@@ -33,12 +33,12 @@ export class FeatureSelectorPopup{
 
     const column_values = [0.3, 0.7, 1.0, 1.6, 3.5, 6.0, 10.0]
     const featureCreators = new Map<string, (value: number) => Promise<ILFeatureExtractor>>([
-      ["Gaussian Smoothing",              (value) => {return ILGaussianSmoothing.create(value)}],
-      ["Gaussian Gradient Magnitude",     (value) => {return ILGaussianGradientMagnitude.create(value)}],
-      ["Difference Of Gaussians",         (value) => {return ILDifferenceOfGaussians.create(value, value * 0.66)}],
-      ["Hessian Of Gaussian Eigenvalues", (value) => {return ILHessianOfGaussianEigenvalues.create(value)}],
-      ["Laplacian Of Gaussian",           (value) => {return ILLaplacianOfGaussian.create(value)}],
-      ["Structure Tensor Eigenvalues",    (value) => {return ILStructureTensorEigenvalues.create(value, value * 0.5)}],
+      ["Gaussian Smoothing",              (value) => {return ILGaussianSmoothing.create(value, num_input_channels)}],
+      ["Gaussian Gradient Magnitude",     (value) => {return ILGaussianGradientMagnitude.create(value, num_input_channels)}],
+      ["Difference Of Gaussians",         (value) => {return ILDifferenceOfGaussians.create(value, value * 0.66, num_input_channels)}],
+      ["Hessian Of Gaussian Eigenvalues", (value) => {return ILHessianOfGaussianEigenvalues.create(value, num_input_channels)}],
+      ["Laplacian Of Gaussian",           (value) => {return ILLaplacianOfGaussian.create(value, num_input_channels)}],
+      ["Structure Tensor Eigenvalues",    (value) => {return ILStructureTensorEigenvalues.create(value, value * 0.5, num_input_channels)}],
     ])
 
     const table = createElement({tagName: 'table', parentElement: this.featuresWindow})
@@ -91,7 +91,7 @@ export class PixelClassificationWorkflow extends ILPixelClassificationWorkflow{
     this.featureSelector = new FeatureSelectorPopup((features: Array<ILFeatureExtractor>) => {
       this.clearFeatureExtractors()
       this.addFeatureExtractors(features)
-    })
+    }, dataSource.shape.c)
   }
 
   public showFeatureSelection(parentElement: HTMLElement){

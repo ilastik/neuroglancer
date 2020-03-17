@@ -82,79 +82,63 @@ abstract class ILObject{
 export abstract class ILFeatureExtractor extends ILObject{
 }
 
-abstract class ILSigmaFeatureExtractor extends ILFeatureExtractor{
-    public readonly sigma: number
-    protected constructor(id: string, sigma: number){
-        super(id)
-        this.sigma = sigma
+export class ILGaussianSmoothing extends ILFeatureExtractor{
+    public static async create(sigma: number, num_input_channels: number, axis_2d='z'){
+        var id = await super._create({sigma, num_input_channels, axis_2d}, this.endpointName)
+        return new this(id)
     }
 }
 
-export class ILGaussianSmoothing extends ILSigmaFeatureExtractor{
-    public static async create(sigma: number){
-        var id = await super._create({sigma}, this.endpointName)
-        return new this(id, sigma)
+export class ILGaussianGradientMagnitude extends ILFeatureExtractor{
+    public static async create(sigma: number, num_input_channels: number, axis_2d='z'){
+        var id = await super._create({sigma, num_input_channels, axis_2d}, this.endpointName)
+        return new this(id)
     }
 }
 
-export class ILGaussianGradientMagnitude extends ILSigmaFeatureExtractor{
-    public static async create(sigma: number){
-        var id = await super._create({sigma}, this.endpointName)
-        return new this(id, sigma)
+export class ILHessianOfGaussianEigenvalues extends ILFeatureExtractor{
+    public static async create(scale: number, num_input_channels: number, axis_2d='z'){
+        var id = await super._create({scale, axis_2d, num_input_channels}, this.endpointName)
+        return new this(id)
     }
 }
 
-abstract class ILScaleFeatureExtractor extends ILFeatureExtractor{
-    public readonly scale: number
-    protected constructor(id: string, scale: number){
-        super(id)
-        this.scale = scale
-    }
-}
-
-export class ILHessianOfGaussianEigenvalues extends ILScaleFeatureExtractor{
-    public static async create(scale: number){
-        var id = await super._create({scale}, this.endpointName)
-        return new this(id, scale)
-    }
-}
-
-export class ILLaplacianOfGaussian extends ILScaleFeatureExtractor{
-    public static async create(scale: number){
-        var id = await super._create({scale}, this.endpointName)
-        return new this(id, scale)
+export class ILLaplacianOfGaussian extends ILFeatureExtractor{
+    public static async create(scale: number, num_input_channels: number, axis_2d='z'){
+        var id = await super._create({scale, axis_2d, num_input_channels}, this.endpointName)
+        return new this(id)
     }
 }
 
 export class ILDifferenceOfGaussians extends ILFeatureExtractor{
-    protected constructor(id: string, public readonly sigma0: number, public readonly sigma1: number){
-        super(id)
-    }
-    public static async create(sigma0: number, sigma1: number){
-        var id = await super._create({sigma0, sigma1}, this.endpointName)
-        return new this(id, sigma0, sigma1)
+    public static async create(sigma0: number, sigma1: number, num_input_channels: number, axis_2d='z'){
+        var id = await super._create({sigma0, sigma1, num_input_channels, axis_2d}, this.endpointName)
+        return new this(id)
     }
 }
 
 export class ILStructureTensorEigenvalues extends ILFeatureExtractor{
-    protected constructor(id: string, public readonly innerScale: number, public readonly outerScale: number){
-        super(id)
-    }
-    public static async create(innerScale: number, outerScale: number){
-        var id = await super._create({innerScale, outerScale}, this.endpointName)
-        return new this(id, innerScale, outerScale)
+    public static async create(innerScale: number, outerScale: number, num_input_channels: number, axis_2d='z'){
+        var id = await super._create({innerScale, outerScale, num_input_channels, axis_2d}, this.endpointName)
+        return new this(id)
     }
 }
 
-export class ILNgAnnotation extends ILObject{
+export class ILAnnotation extends ILObject{
     private constructor(id: string, public readonly color: Array<number>){
         super(id);
     }
 
     public static async create(
         voxels: Array<{x:number, y:number, z:number}>, color: Array<number>, rawData: ILDataSource
-    ): Promise<ILNgAnnotation>{
-        var id =  await super._create({voxels, color, raw_data: rawData.id}, this.endpointName)
+    ): Promise<ILAnnotation>{
+        var payload_color = new Map<String, number>()
+        let channel_labels = "rgba"
+        for(let i=0; i<color.length; i++){
+            console.log(`Color channel: ${color[i]}`)
+            payload_color.set(channel_labels[i], Math.round(color[i] * 255))
+        }
+        var id =  await super._create({voxels, color: payload_color, raw_data: rawData.id}, this.endpointName)
         return new this(id, color)
     }
 }
@@ -188,14 +172,22 @@ export class ILDataSource extends ILObject{
 }
 
 export class ILPixelClassifier extends ILObject{
+    public static get endpointName() : string{
+        return "IlpVigraPixelClassifier"
+    }
+
+    public get endpointName() : string{
+        return "IlpVigraPixelClassifier"
+    }
+
     private constructor(id: string,
                         public readonly feature_extractors: Array<ILFeatureExtractor>,
-                        public readonly annotations: Array<ILNgAnnotation>,
+                        public readonly annotations: Array<ILAnnotation>,
     ){
         super(id);
     }
 
-    public static async create(feature_extractors: Array<ILFeatureExtractor>, annotations: Array<ILNgAnnotation>){
+    public static async create(feature_extractors: Array<ILFeatureExtractor>, annotations: Array<ILAnnotation>){
         const data = {
             feature_extractors: feature_extractors.map(fe => {return fe.id}),
             annotations: annotations.map(annotation => {return annotation.id})
@@ -211,7 +203,7 @@ export class ILPixelClassifier extends ILObject{
 
 export class ILPixelClassificationWorkflow{
     protected featureExtractors = new Map<String, ILFeatureExtractor>()
-    protected annotations = new Map<String, ILNgAnnotation>()
+    protected annotations = new Map<String, ILAnnotation>()
     protected pixelClassifier: ILPixelClassifier|undefined
 
     constructor(public raw_data:ILDataSource){
@@ -245,12 +237,12 @@ export class ILPixelClassificationWorkflow{
       return this.tryUpdatePixelClassifier()
     }
 
-    public async addAnnotation(annotation:ILNgAnnotation){
+    public async addAnnotation(annotation:ILAnnotation){
         this.annotations.set(annotation.id, annotation)
         return await this.tryUpdatePixelClassifier()
     }
 
-    public async removeAnnotation(annotation:ILNgAnnotation){
+    public async removeAnnotation(annotation:ILAnnotation){
         this.annotations.delete(annotation.id)
         await annotation.destroy()
         return await this.tryUpdatePixelClassifier()
