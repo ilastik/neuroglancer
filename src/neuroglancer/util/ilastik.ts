@@ -12,6 +12,10 @@ function toMap(data: any): Map<String, any>{
         return data;
     }
     const outmap = new Map<String, any>();
+    if(data instanceof Array){
+        data.forEach((value, index) => {outmap.set(`${index}`, value)})
+        return outmap
+    }
     Object.keys(data).forEach(key => {
         outmap.set(key, data[key]);
     })
@@ -64,6 +68,18 @@ abstract class ILObject{
             throw Error(`Creating ${endpointName} failed`)
         }
         return await response.json()
+    }
+
+    protected static async _retrieve(id: string, endpointName: string): Promise<any>{
+        const response = await fetch(`${ilastikApiUrl}/${endpointName}/${id}`, {method: 'GET'})
+        if(!response.ok){
+            throw Error(`Retrieving ${this.name} failed`)
+        }
+        return await response.json()
+    }
+
+    protected async getData() : Promise<any>{
+        return await ILObject._retrieve(this.id, this.endpointName)
     }
 
     public async destroy(){
@@ -124,22 +140,54 @@ export class ILStructureTensorEigenvalues extends ILFeatureExtractor{
     }
 }
 
-export class ILAnnotation extends ILObject{
-    private constructor(id: string, public readonly color: Array<number>){
-        super(id);
+export enum ILFilterName{
+    GaussianSmoothing = "GaussianSmoothing",
+    GaussianGradientMagnitude = "GaussianGradientMagnitude",
+    HessianOfGaussianEigenvalues = "HessianOfGaussianEigenvalues",
+    LaplacianOfGaussian = "LaplacianOfGaussian",
+    DifferenceOfGaussians = "DifferenceOfGaussians",
+    StructureTensorEigenvalues = "StructureTensorEigenvalues",
+}
+
+export class ILFeatureSpec{
+    public readonly name: ILFilterName
+    public readonly scale: number
+    public readonly axis_2d: string
+    public readonly num_input_channels: number
+    public constructor({name, scale, axis_2d, num_input_channels}:
+    {name: ILFilterName, scale: number, axis_2d: string, num_input_channels: number}){
+        this.name = name
+        this.scale = scale
+        this.axis_2d = axis_2d
+        this.num_input_channels = num_input_channels
     }
 
+    //public toCreationPayload(){
+    //    return {"__class__": this.name, scale: this.scale, axis_2d: this.axis_2d, num_input_channels: this.num_input_channels}
+    //}
+}
+
+export class ILColor{
+    public readonly r: number;
+    public readonly g: number;
+    public readonly b: number;
+    public readonly a: number;
+    public constructor({r=0, g=0, b=0, a=255}: {r: number, g: number, b: number, a: number}){
+        this.r = r; this.g = g; this.b = b; this.a = a;
+    }
+}
+
+export class ILAnnotation extends ILObject{
     public static async create(
-        voxels: Array<{x:number, y:number, z:number}>, color: Array<number>, rawData: ILDataSource
+        voxels: Array<{x:number, y:number, z:number}>, color: ILColor, rawData: ILDataSource
     ): Promise<ILAnnotation>{
-        var payload_color = new Map<String, number>()
-        let channel_labels = "rgba"
-        for(let i=0; i<color.length; i++){
-            console.log(`Color channel: ${color[i]}`)
-            payload_color.set(channel_labels[i], Math.round(color[i] * 255))
-        }
-        var id =  await super._create({voxels, color: payload_color, raw_data: rawData.id}, this.endpointName)
-        return new this(id, color)
+        var id =  await super._create({voxels, color: color, raw_data: rawData.id}, this.endpointName)
+        return new this(id)
+    }
+
+    public async getColor() : Promise<ILColor>{
+        let data = await this.getData()
+        return new ILColor(data["color"])
     }
 }
 
@@ -150,24 +198,31 @@ export class ILShape5D{
     public readonly t: number;
     public readonly c: number;
     constructor({x, y, z, t, c}: {x: number, y: number, z: number, t: number, c: number}){
-        this.x = x;
-        this.y = y;
-        this.z = z;
-        this.t = t;
-        this.c = c;
+        this.x = x; this.y = y; this.z = z; this.t = t; this.c = c;
     }
 }
 
 export class ILDataSource extends ILObject{
-    private constructor(id: string, public readonly url: string, public readonly shape: ILShape5D){super(id);}
+    public async getShape(): Promise<ILShape5D>{
+        let data = await this.getData()
+        return new ILShape5D(data['shape']);
+    }
 
-    public static async retrieve(id: string){
-        const response = await fetch(`${ilastikApiUrl}/data_source/${id}`, {method: 'GET'})
-        if(!response.ok){
-            throw Error(`Creating ${this.name} failed`)
-        }
-        const datasource_data = await response.json()
-        return new this(id, datasource_data['url'], new ILShape5D(datasource_data['shape']));
+    public async getUrl(): Promise<ILShape5D>{
+        let data = await this.getData()
+        return data['url'];
+    }
+}
+
+class ILDataLane extends ILObject{
+    public static async create(RawData: ILDataSource){
+        const id = await super._create({"RawData": RawData.id}, this.endpointName)
+        return new this(id)
+    }
+
+    public async getRawData() : Promise<ILDataSource>{
+        let data = await this.getData()
+        return new ILDataSource(data["RawData"])
     }
 }
 
@@ -180,71 +235,98 @@ export class ILPixelClassifier extends ILObject{
         return "IlpVigraPixelClassifier"
     }
 
-    private constructor(id: string,
-                        public readonly feature_extractors: Array<ILFeatureExtractor>,
-                        public readonly annotations: Array<ILAnnotation>,
-    ){
-        super(id);
-    }
-
     public static async create(feature_extractors: Array<ILFeatureExtractor>, annotations: Array<ILAnnotation>){
         const data = {
             feature_extractors: feature_extractors.map(fe => {return fe.id}),
             annotations: annotations.map(annotation => {return annotation.id})
         }
         const id = await super._create(data, this.endpointName)
-        return new this(id, feature_extractors, annotations)
+        return new this(id)
     }
 
     public getPredictionsUrl(datasource: ILDataSource): String{
         return `precomputed://${ilastikApiUrl}/predictions/${this.id}/${datasource.id}`
     }
+
+    public async getFragShader(): Promise<string>{
+        const response = await fetch(`${ilastikApiUrl}/predictions/${this.id}/neuroglancer_shader`, {
+              method: "GET"
+        })
+        if(!response.ok){
+            throw Error(`Cold not get fragment shader for classifier ${this.id}`)
+        }
+        return response.text()
+    }
 }
 
-export class ILPixelClassificationWorkflow{
-    protected featureExtractors = new Map<String, ILFeatureExtractor>()
-    protected annotations = new Map<String, ILAnnotation>()
-    protected pixelClassifier: ILPixelClassifier|undefined
 
-    constructor(public raw_data:ILDataSource){
-    }
+class WorkflowMethodError extends Error {}
 
-    protected async tryUpdatePixelClassifier(): Promise<ILPixelClassifier|undefined>{
-        if(this.annotations.size > 0 && this.featureExtractors.size > 0){
-            this.pixelClassifier = await ILPixelClassifier.create(Array.from(this.featureExtractors.values()),
-                                                                  Array.from(this.annotations.values()))
-        }else{
-            this.pixelClassifier = undefined;
+
+export class ILPixelClassificationWorkflow extends ILObject{
+    public static get endpointName() : string{ return "PixelClassificationWorkflow2" }
+    public get endpointName() : string{ return "PixelClassificationWorkflow2" }
+
+    private async rpc(httpMethod: string, workflowMethod: string, payload: any = undefined): Promise<any>{
+        const response = await fetch(`${ilastikApiUrl}/${this.endpointName}/${this.id}/${workflowMethod}`, {
+              method: httpMethod,
+              body: payload !== undefined ? toFormData(payload) : undefined
+        })
+        if(!response.ok){
+            throw new WorkflowMethodError(`Calling method ${workflowMethod} on workflow ${this.id} failed`)
         }
-        return this.pixelClassifier
+        return await response.json()
     }
 
-    public clearFeatureExtractors(){
-        this.featureExtractors.clear()
+    public async getLanes() : Promise<Array<ILDataLane>>{
+        let data = await this.getData()
+        return (data["lanes"] as Array<string>).map(lane_id => {return new ILDataLane(lane_id)})
     }
 
-    public async addFeatureExtractor(extractor: ILFeatureExtractor, updateClassifier=true){
-        this.featureExtractors.set(extractor.id, extractor)
-        if(updateClassifier){
-            this.tryUpdatePixelClassifier()
+    public async getClassifier() : Promise<ILPixelClassifier|undefined>{
+        let data = await this.getData()
+        let id = data["classifier"]
+        if(id === null || id === undefined){
+            return undefined
         }
+        return new ILPixelClassifier(id)
     }
 
-    public async addFeatureExtractors(extractors: Array<ILFeatureExtractor>){
-      for(let f of extractors){
-        this.addFeatureExtractor(f, false)
-      }
-      return this.tryUpdatePixelClassifier()
+    public static async create(lanes: Array<ILDataLane>, feature_extractors: Array<ILFeatureExtractor>, annotations: Array<ILAnnotation>){
+        const data = {
+            lanes: lanes.map(l => {return l.id}),
+            feature_extractors: feature_extractors.map(fe => {return fe.id}),
+            annotations: annotations.map(annotation => {return annotation.id})
+        }
+        const id = await super._create(data, this.endpointName)
+        return new this(id)
     }
 
-    public async addAnnotation(annotation:ILAnnotation){
-        this.annotations.set(annotation.id, annotation)
-        return await this.tryUpdatePixelClassifier()
+    public static async createEmpty(): Promise<ILPixelClassificationWorkflow>{
+        return this.create(new Array<ILDataLane>(), new Array<ILFeatureExtractor>(), new Array<ILAnnotation>())
     }
 
-    public async removeAnnotation(annotation:ILAnnotation){
-        this.annotations.delete(annotation.id)
-        await annotation.destroy()
-        return await this.tryUpdatePixelClassifier()
+    public async add_ilp_feature_extractors(featureSpecs: Array<ILFeatureSpec>){
+        await this.rpc("POST", "add_ilp_feature_extractors", featureSpecs/*.map(fs => {return fs.toCreationPayload()})*/)
+    }
+
+    public async add_feature_extractors(extractors: Array<ILFeatureExtractor>){
+        await this.rpc("POST", "add_feature_extractors", extractors.map(fe => {return fe.id}))
+    }
+
+    public async remove_feature_extractors(extractors: Array<ILFeatureExtractor>){
+        await this.rpc("DELETE", "remove_feature_extractors", extractors.map(fe => {return fe.id}))
+    }
+
+    public async clear_feature_extractors(){
+        await this.rpc("DELETE", "clear_feature_extractors")
+    }
+
+    public async add_annotations(annotations: Array<ILAnnotation>){
+        await this.rpc("POST", "add_annotations", annotations.map(annot => {return annot.id}))
+    }
+
+    public async remove_annotations(annotations: Array<ILAnnotation>){
+        await this.rpc("DELETE", "remove_annotations", annotations.map(annot => {return annot.id}))
     }
 }

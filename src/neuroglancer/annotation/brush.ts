@@ -25,7 +25,7 @@ import {emitterDependentShaderGetter, ShaderBuilder} from 'neuroglancer/webgl/sh
 import {Uint64} from 'neuroglancer/util/uint64';
 import {GL} from 'neuroglancer/webgl/context';
 import {Buffer} from 'neuroglancer/webgl/buffer';
-import {ILAnnotation} from 'neuroglancer/util/ilastik'
+import {ILAnnotation, ILColor} from 'neuroglancer/util/ilastik'
 import {PixelClassificationWorkflow} from 'neuroglancer/pixel_classification'
 import {UserLayerWithAnnotations} from 'neuroglancer/ui/annotations'
 
@@ -193,11 +193,12 @@ export class BrushAnnotation implements Brush{
     const brushColor = this.getColor()
     return {
       voxels: jsonPoints,
-      color: [
-        Math.floor(brushColor[0] * 255),
-        Math.floor(brushColor[1] * 255),
-        Math.floor(brushColor[2] * 255)
-      ],
+      color: {
+        r: Math.floor(brushColor[0] * 255),
+        g: Math.floor(brushColor[1] * 255),
+        b: Math.floor(brushColor[2] * 255),
+        a: 255
+      },
     }
   }
 
@@ -206,14 +207,14 @@ export class BrushAnnotation implements Brush{
     const dataSource = await PixelClassificationWorkflow.getFirstLayerDataSource()
     const jsonData = this.toJsonData()
 
-    this.upstreamAnnotation = await ILAnnotation.create(jsonData.voxels, jsonData.color, dataSource)
+    this.upstreamAnnotation = await ILAnnotation.create(jsonData.voxels, new ILColor(jsonData.color), dataSource)
 
-    pixelWorkflow.addAnnotation(this.upstreamAnnotation)
+    pixelWorkflow.add_annotations([this.upstreamAnnotation])
   }
 
   public async destroy(){
     const workflow = await PixelClassificationWorkflow.getInstance()
-    workflow.removeAnnotation(this.upstreamAnnotation!)
+    workflow.remove_annotations([this.upstreamAnnotation!])
   }
 }
 

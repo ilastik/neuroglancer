@@ -1,9 +1,6 @@
 import {Viewer} from 'neuroglancer/viewer';
 import {ManagedUserLayerWithSpecification} from 'neuroglancer/layer_specification'
-import {ILDataSource, ILPixelClassifier, ILPixelClassificationWorkflow} from 'neuroglancer/util/ilastik'
-import {ILFeatureExtractor, ILGaussianSmoothing, ILGaussianGradientMagnitude} from 'neuroglancer/util/ilastik'
-import {ILDifferenceOfGaussians, ILHessianOfGaussianEigenvalues, ILLaplacianOfGaussian} from 'neuroglancer/util/ilastik'
-import {ILStructureTensorEigenvalues} from 'neuroglancer/util/ilastik'
+import {ILDataSource, ILFilterName, ILFeatureSpec, ILPixelClassificationWorkflow, ILAnnotation} from 'neuroglancer/util/ilastik'
 import {createElement, createInput, removeFromParent} from 'neuroglancer/util/dom'
 
 
@@ -24,21 +21,20 @@ export class FeatureSelectorPopup{
     this.featuresWindow.style.display = 'none'
   }
 
-  public constructor(resolve: (features: Array<ILFeatureExtractor>) => any, num_input_channels: number){
+  public constructor(resolve: (featureSpecs: Array<ILFeatureSpec>) => any, datasource: ILDataSource){
     this.featuresWindow = document.createElement("div")
     this.featuresWindow.style.display = "none"
     this.featuresWindow.style.backgroundColor = "#252525"
     this.featuresWindow.style.overflow = "auto"
 
-
     const column_values = [0.3, 0.7, 1.0, 1.6, 3.5, 6.0, 10.0]
-    const featureCreators = new Map<string, (value: number) => Promise<ILFeatureExtractor>>([
-      ["Gaussian Smoothing",              (value) => {return ILGaussianSmoothing.create(value, num_input_channels)}],
-      ["Gaussian Gradient Magnitude",     (value) => {return ILGaussianGradientMagnitude.create(value, num_input_channels)}],
-      ["Difference Of Gaussians",         (value) => {return ILDifferenceOfGaussians.create(value, value * 0.66, num_input_channels)}],
-      ["Hessian Of Gaussian Eigenvalues", (value) => {return ILHessianOfGaussianEigenvalues.create(value, num_input_channels)}],
-      ["Laplacian Of Gaussian",           (value) => {return ILLaplacianOfGaussian.create(value, num_input_channels)}],
-      ["Structure Tensor Eigenvalues",    (value) => {return ILStructureTensorEigenvalues.create(value, value * 0.5, num_input_channels)}],
+    const featureNames = new Map<string, ILFilterName>([
+      ["Gaussian Smoothing",              ILFilterName.GaussianSmoothing],
+      ["Gaussian Gradient Magnitude",     ILFilterName.GaussianGradientMagnitude],
+      ["Difference Of Gaussians",         ILFilterName.DifferenceOfGaussians],
+      ["Hessian Of Gaussian Eigenvalues", ILFilterName.HessianOfGaussianEigenvalues],
+      ["Laplacian Of Gaussian",           ILFilterName.LaplacianOfGaussian],
+      ["Structure Tensor Eigenvalues",    ILFilterName.StructureTensorEigenvalues],
     ])
 
     const table = createElement({tagName: 'table', parentElement: this.featuresWindow})
@@ -49,19 +45,20 @@ export class FeatureSelectorPopup{
       createElement({tagName: 'th', innerHTML: val.toFixed(1), parentElement: tr})
     }
 
-    const featureMatrix = new Map<string, Map<number, ILFeatureExtractor>>()
-    featureCreators.forEach(async (featureCreator, featureName) => {
+    const featureMatrix = new Map<string, Map<number, ILFeatureSpec>>()
+    featureNames.forEach(async (featureName, featureLabel) => {
+      let num_input_channels = (await datasource.getShape()).c
       var tr = createElement({tagName: 'tr', parentElement: table})
-      createElement({tagName: 'td', innerHTML: featureName, parentElement: tr})
-      featureMatrix.set(featureName, new Map<number, ILFeatureExtractor>())
+      createElement({tagName: 'td', innerHTML: featureLabel, parentElement: tr})
+      featureMatrix.set(featureLabel, new Map<number, ILFeatureSpec>())
       for(let val of column_values){
         const td = createElement({tagName: 'td', parentElement: tr})
-        const featureExtractor = await featureCreator(val)
-        createInput({inputType: 'checkbox', parentElement: td, click: async (e) => {
-          const featureScales = featureMatrix.get(featureName)!
+        const featureSpec = new ILFeatureSpec({name: featureName, scale: val, axis_2d: "z", num_input_channels})
+        createInput({inputType: 'checkbox', parentElement: td, click: (e) => {
+          const featureScales = featureMatrix.get(featureLabel)!
           const cb = <HTMLInputElement>e.target
           if(cb.checked){
-            featureScales.set(val, featureExtractor)
+            featureScales.set(val, featureSpec)
           }else{
             featureScales.delete(val)
           }
@@ -70,14 +67,14 @@ export class FeatureSelectorPopup{
     })
 
     createInput({inputType: 'button', parentElement: this.featuresWindow, value: 'Ok', click: () => {
-      const features = new Array<ILFeatureExtractor>()
+      const featureSpecs = new Array<ILFeatureSpec>()
       featureMatrix.forEach((featureScales) => {
         featureScales.forEach((f) => {
-          features.push(f)
+          featureSpecs.push(f)
         })
       })
       this.hide()
-      resolve(features)
+      resolve(featureSpecs)
     }})
   }
 }
@@ -86,12 +83,13 @@ export class PixelClassificationWorkflow extends ILPixelClassificationWorkflow{
   private static instance: PixelClassificationWorkflow|undefined
   private featureSelector : FeatureSelectorPopup
 
-  private constructor(dataSource: ILDataSource){
-    super(dataSource);
-    this.featureSelector = new FeatureSelectorPopup((features: Array<ILFeatureExtractor>) => {
-      this.clearFeatureExtractors()
-      this.addFeatureExtractors(features)
-    }, dataSource.shape.c)
+
+  private constructor(id: string, private raw_data: ILDataSource){ //FIXME: get from server
+    super(id)
+    this.featureSelector = new FeatureSelectorPopup(async (featureSpecs: Array<ILFeatureSpec>) => {
+      await this.clear_feature_extractors()
+      await this.add_ilp_feature_extractors(featureSpecs)
+    }, raw_data)
   }
 
   public showFeatureSelection(parentElement: HTMLElement){
@@ -100,8 +98,9 @@ export class PixelClassificationWorkflow extends ILPixelClassificationWorkflow{
 
   public static async getInstance(): Promise<PixelClassificationWorkflow>{
     if(this.instance === undefined){
-      const activeDataSource = await this.getFirstLayerDataSource()
-      this.instance = new PixelClassificationWorkflow(activeDataSource)
+      const activeDataSource : ILDataSource = await this.getFirstLayerDataSource()
+      const base_workflow = await ILPixelClassificationWorkflow.createEmpty() //FIXME
+      this.instance = new PixelClassificationWorkflow(base_workflow.id, activeDataSource) //FIXME
     }
     return this.instance
   }
@@ -116,8 +115,23 @@ export class PixelClassificationWorkflow extends ILPixelClassificationWorkflow{
     const managedLayer = <ManagedUserLayerWithSpecification>this.getFirstManagedLayer();
     const url = managedLayer.sourceUrl!
     const dataSourceId = url.match(/\/datasource\/([a-zA-Z@0-9\-]+)/)![1]
-    const dataSource = await ILDataSource.retrieve(dataSourceId)
+    const dataSource = new ILDataSource(dataSourceId)
     return dataSource
+  }
+
+  public async add_ilp_feature_extractors(featureSpecs: Array<ILFeatureSpec>){
+    await super.add_ilp_feature_extractors(featureSpecs)
+    await this.refreshPredictionLayer()
+  }
+
+  public async add_annotations(annotations: Array<ILAnnotation>){
+    await super.add_annotations(annotations)
+    await this.refreshPredictionLayer()
+  }
+
+  public async remove_annotations(annotations: Array<ILAnnotation>){
+    await super.remove_annotations(annotations)
+    await this.refreshPredictionLayer()
   }
 
 
@@ -132,43 +146,15 @@ export class PixelClassificationWorkflow extends ILPixelClassificationWorkflow{
       layerManager.removeManagedLayer(predictionsLayer);
     }
 
-    if(this.pixelClassifier === undefined){
+    const pixelClassifier = await this.getClassifier()
+    if(pixelClassifier === undefined){
       return
     }
 
-    const predictionsUrl = this.pixelClassifier.getPredictionsUrl(this.raw_data)
+    const predictionsUrl = pixelClassifier.getPredictionsUrl(this.raw_data)
+    const predictionsFragShader = await pixelClassifier.getFragShader()
 
-    let uniqueColors = new Map<String, Array<number>>()
-    for(let annotation of this.annotations.values()){
-      uniqueColors.set(String(annotation.color), annotation.color)
-    }
-
-    const colorLines = new Array<String>()
-    const colorsToMix = new Array<String>()
-    Array.from(uniqueColors.values()).forEach((color:Array<number>, colorIdx:number) => {
-      var colorLine = `vec3 color${colorIdx} = (vec3(${color[0]}, ${color[1]}, ${color[2]}) / 255.0) * toNormalized(getDataValue(${colorIdx}));`
-      colorLines.push(colorLine)
-      colorsToMix.push(`color${colorIdx}`)
-    })
-
-
-    const predictionsFragShader = `
-      void main() {
-        ${colorLines.join('\n')}
-
-        emitRGBA(
-          vec4(${colorsToMix.join(' + ')}, 0.4)
-        );
-      }
-    `
     const newPredictionsLayer = viewer.layerSpecification.getLayer(predictionsLabel, {source: predictionsUrl, shader: predictionsFragShader});
     viewer.layerSpecification.add(newPredictionsLayer);
-  }
-
-  protected async tryUpdatePixelClassifier(): Promise<ILPixelClassifier|undefined>{
-    await super.tryUpdatePixelClassifier();
-    await this.refreshPredictionLayer()
-
-    return this.pixelClassifier
   }
 }
