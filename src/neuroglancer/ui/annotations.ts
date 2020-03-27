@@ -480,6 +480,11 @@ export class AnnotationLayerView extends Tab {
       createInput({inputType: 'button', value: 'Features', parentElement: toolbox, click: async () => {
         (await PixelClassificationWorkflow.getInstance()).showFeatureSelection(this.element)
       }})
+
+      createInput({inputType: 'button', value: 'Download Ilp', parentElement: toolbox, click: async () => {
+        let workflow = await PixelClassificationWorkflow.getInstance()
+        window.location.href = workflow.downloadLink
+      }})
     }
     this.element.appendChild(toolbox);
 

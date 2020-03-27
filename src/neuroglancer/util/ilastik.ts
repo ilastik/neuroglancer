@@ -292,6 +292,10 @@ export class ILPixelClassificationWorkflow extends ILObject{
         return new ILPixelClassifier(id)
     }
 
+    public get downloadLink(): string{
+        return `${ilastikApiUrl}/${this.endpointName}/${this.id}/ilp_project?no_cache=${Date.now()}`
+    }
+
     public static async create(lanes: Array<ILDataLane>, feature_extractors: Array<ILFeatureExtractor>, annotations: Array<ILAnnotation>){
         const data = {
             lanes: lanes.map(l => {return l.id}),
