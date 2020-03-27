@@ -30,11 +30,11 @@ export class FeatureSelectorPopup{
     const column_values = [0.3, 0.7, 1.0, 1.6, 3.5, 6.0, 10.0]
     const featureNames = new Map<string, ILFilterName>([
       ["Gaussian Smoothing",              ILFilterName.GaussianSmoothing],
+      ["Laplacian Of Gaussian",           ILFilterName.LaplacianOfGaussian],
       ["Gaussian Gradient Magnitude",     ILFilterName.GaussianGradientMagnitude],
       ["Difference Of Gaussians",         ILFilterName.DifferenceOfGaussians],
-      ["Hessian Of Gaussian Eigenvalues", ILFilterName.HessianOfGaussianEigenvalues],
-      ["Laplacian Of Gaussian",           ILFilterName.LaplacianOfGaussian],
       ["Structure Tensor Eigenvalues",    ILFilterName.StructureTensorEigenvalues],
+      ["Hessian Of Gaussian Eigenvalues", ILFilterName.HessianOfGaussianEigenvalues],
     ])
 
     const table = createElement({tagName: 'table', parentElement: this.featuresWindow})
@@ -53,6 +53,9 @@ export class FeatureSelectorPopup{
       featureMatrix.set(featureLabel, new Map<number, ILFeatureSpec>())
       for(let val of column_values){
         const td = createElement({tagName: 'td', parentElement: tr})
+        if(val == 0.3 && featureName != ILFilterName.GaussianSmoothing){
+            continue
+        }
         const featureSpec = new ILFeatureSpec({name: featureName, scale: val, axis_2d: "z", num_input_channels})
         createInput({inputType: 'checkbox', parentElement: td, click: (e) => {
           const featureScales = featureMatrix.get(featureLabel)!
