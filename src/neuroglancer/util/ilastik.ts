@@ -278,6 +278,10 @@ export class ILPixelClassificationWorkflow extends ILObject{
         return await response.json()
     }
 
+    public async upload_to_cloud_ilastik(cloud_ilastik_token: string, project_name: string): Promise<any>{
+        return this.rpc("POST", "upload_to_cloud_ilastik", {cloud_ilastik_token, project_name})
+    }
+
     public async getLanes() : Promise<Array<ILDataLane>>{
         let data = await this.getData()
         return (data["lanes"] as Array<string>).map(lane_id => {return new ILDataLane(lane_id)})

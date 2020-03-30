@@ -99,6 +99,37 @@ export class PixelClassificationWorkflow extends ILPixelClassificationWorkflow{
     this.featureSelector.show(parentElement)
   }
 
+  public getIlastikToken(): string|null{
+    let key = "ilastikToken"
+    let storage = window.localStorage
+    let token = storage.getItem(key)
+    if(token != null){
+      return token
+    }
+    let token_url = "https://web.ilastik.org/token/"
+    window.open(token_url)
+    let copied_token = prompt(`Please copy your ilastik token (from ${token_url} here`)
+    if(copied_token == null){
+      return null
+    }
+    storage.setItem(key, copied_token)
+    return copied_token
+  }
+
+  public async interactiveUploadToCloud(){
+    let token = this.getIlastikToken()
+    if(token == null){
+      return
+    }
+    let projectName = prompt("Please enter a project name:")
+    if(projectName == null){
+      return
+    }
+    let payload = await super.upload_to_cloud_ilastik(token, projectName)
+
+    window.open(payload["html_url"]) //FIXME: this is not opening  anew tab -.-
+  }
+
   public static async getInstance(): Promise<PixelClassificationWorkflow>{
     if(this.instance === undefined){
       const activeDataSource : ILDataSource = await this.getFirstLayerDataSource()
