@@ -127,6 +127,7 @@ export class PixelClassificationWorkflow extends ILPixelClassificationWorkflow{
     }
     let payload = await super.upload_to_cloud_ilastik(token, projectName)
 
+    alert(`Success! You can now fire jobs from ${payload["html_url"]} !`)
     window.open(payload["html_url"]) //FIXME: this is not opening  anew tab -.-
   }
 
