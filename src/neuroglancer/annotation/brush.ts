@@ -204,7 +204,7 @@ export class BrushAnnotation implements Brush{
 
   public async upload(){
     const pixelWorkflow = await PixelClassificationWorkflow.getInstance()
-    const dataSource = await PixelClassificationWorkflow.getFirstLayerDataSource()
+    const dataSource = await pixelWorkflow.getFirstRawDataSource()
     const jsonData = this.toJsonData()
 
     this.upstreamAnnotation = await ILAnnotation.create(jsonData.voxels, new ILColor(jsonData.color), dataSource)

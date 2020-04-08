@@ -21,13 +21,13 @@ export class FeatureSelectorPopup{
     this.featuresWindow.style.display = 'none'
   }
 
-  public constructor(resolve: (featureSpecs: Array<ILFeatureSpec>) => any, datasource: ILDataSource){
+  public constructor(num_input_channels: number, resolve: (featureSpecs: Array<ILFeatureSpec>) => any){
     this.featuresWindow = document.createElement("div")
     this.featuresWindow.style.display = "none"
     this.featuresWindow.style.backgroundColor = "#252525"
     this.featuresWindow.style.overflow = "auto"
 
-    const column_values = [0.3, 0.7, 1.0, 1.6, 3.5, 6.0, 10.0]
+    const column_values = [0.3, 0.7, 1.0, 1.6, 3.5, 5.0, 10.0]
     const featureNames = new Map<string, ILFilterName>([
       ["Gaussian Smoothing",              ILFilterName.GaussianSmoothing],
       ["Laplacian Of Gaussian",           ILFilterName.LaplacianOfGaussian],
@@ -47,7 +47,6 @@ export class FeatureSelectorPopup{
 
     const featureMatrix = new Map<string, Map<number, ILFeatureSpec>>()
     featureNames.forEach(async (featureName, featureLabel) => {
-      let num_input_channels = (await datasource.getShape()).c
       var tr = createElement({tagName: 'tr', parentElement: table})
       createElement({tagName: 'td', innerHTML: featureLabel, parentElement: tr})
       featureMatrix.set(featureLabel, new Map<number, ILFeatureSpec>())
@@ -84,18 +83,30 @@ export class FeatureSelectorPopup{
 
 export class PixelClassificationWorkflow extends ILPixelClassificationWorkflow{
   private static instance: PixelClassificationWorkflow|undefined
-  private featureSelector : FeatureSelectorPopup
+  private featureSelector: FeatureSelectorPopup|undefined
 
-
-  private constructor(id: string, private raw_data: ILDataSource){ //FIXME: get from server
-    super(id)
-    this.featureSelector = new FeatureSelectorPopup(async (featureSpecs: Array<ILFeatureSpec>) => {
-      await this.clear_feature_extractors()
-      await this.add_ilp_feature_extractors(featureSpecs)
-    }, raw_data)
+  public async getFirstRawDataSource() : Promise<ILDataSource>{
+    const lanes = await this.getLanes()
+    if(lanes.length == 0){
+      debugger
+      throw new Error("No lanes in workflow!")
+    }
+    const datasource_info = await lanes[0].getRawData()
+    return await datasource_info.getDataSource()
   }
 
-  public showFeatureSelection(parentElement: HTMLElement){
+  public async showFeatureSelection(parentElement: HTMLElement){
+    if(this.featureSelector === undefined){
+      const datasource = await this.getFirstRawDataSource()
+      const shape = await datasource.getShape()
+      this.featureSelector = new FeatureSelectorPopup(
+        shape.c,
+        async (featureSpecs: Array<ILFeatureSpec>) => {
+          await this.clear_feature_extractors()
+          await this.add_ilp_feature_extractors(featureSpecs)
+        }
+      )
+    }
     this.featureSelector.show(parentElement)
   }
 
@@ -133,9 +144,15 @@ export class PixelClassificationWorkflow extends ILPixelClassificationWorkflow{
 
   public static async getInstance(): Promise<PixelClassificationWorkflow>{
     if(this.instance === undefined){
-      const activeDataSource : ILDataSource = await this.getFirstLayerDataSource()
+      const managedLayer = <ManagedUserLayerWithSpecification>this.getFirstManagedLayer();
+      var data_url = managedLayer.sourceUrl!
+      if(!data_url.startsWith("precomputed://")){
+        throw new Error("Only precomputed chunks support for now!")
+      }
+      data_url += "/data" //FIXME: this assume sa single scale ant that its key is "data"
       const base_workflow = await ILPixelClassificationWorkflow.createEmpty() //FIXME
-      this.instance = new PixelClassificationWorkflow(base_workflow.id, activeDataSource) //FIXME
+      await base_workflow.add_lane_for_url(data_url)
+      this.instance = new PixelClassificationWorkflow(base_workflow.__self__) //FIXME
     }
     return this.instance
   }
@@ -144,14 +161,6 @@ export class PixelClassificationWorkflow extends ILPixelClassificationWorkflow{
     const viewer = <Viewer>((<any>window)['viewer']);
     const layerManager = viewer.layerSpecification.layerManager;
     return layerManager.managedLayers[0]!
-  }
-
-  public static async getFirstLayerDataSource(): Promise<ILDataSource>{
-    const managedLayer = <ManagedUserLayerWithSpecification>this.getFirstManagedLayer();
-    const url = managedLayer.sourceUrl!
-    const dataSourceId = url.match(/\/datasource\/([a-zA-Z@0-9\-]+)/)![1]
-    const dataSource = new ILDataSource(dataSourceId)
-    return dataSource
   }
 
   public async add_ilp_feature_extractors(featureSpecs: Array<ILFeatureSpec>){
@@ -186,7 +195,7 @@ export class PixelClassificationWorkflow extends ILPixelClassificationWorkflow{
       return
     }
 
-    const predictionsUrl = pixelClassifier.getPredictionsUrl(this.raw_data)
+    const predictionsUrl = pixelClassifier.getPredictionsUrl(await this.getFirstRawDataSource())
     const predictionsFragShader = await pixelClassifier.getFragShader()
 
     const newPredictionsLayer = viewer.layerSpecification.getLayer(predictionsLabel, {source: predictionsUrl, shader: predictionsFragShader});

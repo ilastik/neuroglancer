@@ -472,7 +472,8 @@ export class AnnotationLayerView extends Tab {
       brushButton.textContent = getAnnotationTypeHandler(AnnotationType.BRUSH).icon;
       brushButton.title = 'Annotate with brush strokes';
       brushButton.addEventListener('click', async () => {
-        var ds = await PixelClassificationWorkflow.getFirstLayerDataSource()
+        const workflow = await PixelClassificationWorkflow.getInstance()
+        var ds = await workflow.getFirstRawDataSource()
         this.layer.tool.value = new PlaceBrushStrokeTool(this.layer, {}, await ds.getShape());
       });
       toolbox.appendChild(brushButton);
@@ -481,10 +482,10 @@ export class AnnotationLayerView extends Tab {
         (await PixelClassificationWorkflow.getInstance()).showFeatureSelection(this.element)
       }})
 
-//      createInput({inputType: 'button', value: 'get .ilp', parentElement: toolbox, click: async () => {
-//        let workflow = await PixelClassificationWorkflow.getInstance()
-//        window.location.href = workflow.downloadLink
-//      }})
+      createInput({inputType: 'button', value: 'get .ilp', parentElement: toolbox, click: async () => {
+        let workflow = await PixelClassificationWorkflow.getInstance()
+        workflow.downloadIlp()
+      }})
 
       createInput({inputType: 'button', value: 'save to cloud', parentElement: toolbox, click: async () => {
         let workflow = await PixelClassificationWorkflow.getInstance()
