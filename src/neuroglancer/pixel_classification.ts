@@ -8,7 +8,7 @@ import {createElement, createInput, removeFromParent} from 'neuroglancer/util/do
 //
 //})
 
-export class FeatureSelectorPopup{
+export class FeatureSelectorGui{
   private readonly featuresWindow : HTMLElement
 
   public show(parentElement: HTMLElement){
@@ -26,6 +26,8 @@ export class FeatureSelectorPopup{
     this.featuresWindow.style.display = "none"
     this.featuresWindow.style.backgroundColor = "#252525"
     this.featuresWindow.style.overflow = "auto"
+
+    var selected_features = new Set<ILFeatureSpec>()
 
     const column_values = [0.3, 0.7, 1.0, 1.6, 3.5, 5.0, 10.0]
     const featureNames = new Map<string, ILFilterName>([
@@ -45,11 +47,8 @@ export class FeatureSelectorPopup{
       createElement({tagName: 'th', innerHTML: val.toFixed(1), parentElement: tr})
     }
 
-    const featureMatrix = new Map<string, Map<number, ILFeatureSpec>>()
     featureNames.forEach(async (featureName, featureLabel) => {
-      var tr = createElement({tagName: 'tr', parentElement: table})
-      createElement({tagName: 'td', innerHTML: featureLabel, parentElement: tr})
-      featureMatrix.set(featureLabel, new Map<number, ILFeatureSpec>())
+      var tr = createElement({tagName: 'tr', parentElement: table, innerHTML: `<td>${featureLabel}</td>`})
       for(let val of column_values){
         const td = createElement({tagName: 'td', parentElement: tr})
         if(val == 0.3 && featureName != ILFilterName.GaussianSmoothing){
@@ -57,33 +56,37 @@ export class FeatureSelectorPopup{
         }
         const featureSpec = new ILFeatureSpec({name: featureName, scale: val, axis_2d: "z", num_input_channels})
         createInput({inputType: 'checkbox', parentElement: td, click: (e) => {
-          const featureScales = featureMatrix.get(featureLabel)!
-          const cb = <HTMLInputElement>e.target
+          let cb = <HTMLInputElement>e.target
           if(cb.checked){
-            featureScales.set(val, featureSpec)
+            selected_features.add(featureSpec)
           }else{
-            featureScales.delete(val)
+            selected_features.delete(featureSpec)
           }
         }})
       }
     })
 
-    createInput({inputType: 'button', parentElement: this.featuresWindow, value: 'Ok', click: () => {
-      const featureSpecs = new Array<ILFeatureSpec>()
-      featureMatrix.forEach((featureScales) => {
-        featureScales.forEach((f) => {
-          featureSpecs.push(f)
+    createInput({inputType: "button", parentElement: this.featuresWindow, value: "All", click: (e) => {
+        let button = <HTMLInputElement>e.target;
+        this.featuresWindow.querySelectorAll("input[type=checkbox]").forEach((checkbox) => {
+            let cb = <HTMLInputElement>checkbox
+            if((button.value == "All" && !cb.checked) || (button.value == "None" && cb.checked)){
+                cb.click()
+            }
         })
-      })
+        button.value = button.value == "All" ? "None" : "All"
+    }})
+
+    createInput({inputType: 'button', parentElement: this.featuresWindow, value: 'Ok', click: () => {
       this.hide()
-      resolve(featureSpecs)
+      resolve(Array.from(selected_features))
     }})
   }
 }
 
 export class PixelClassificationWorkflow extends ILPixelClassificationWorkflow{
   private static instance: PixelClassificationWorkflow|undefined
-  private featureSelector: FeatureSelectorPopup|undefined
+  private featureSelector: FeatureSelectorGui|undefined
 
   public async getFirstRawDataSource() : Promise<ILDataSource>{
     const lanes = await this.getLanes()
@@ -99,11 +102,13 @@ export class PixelClassificationWorkflow extends ILPixelClassificationWorkflow{
     if(this.featureSelector === undefined){
       const datasource = await this.getFirstRawDataSource()
       const shape = await datasource.getShape()
-      this.featureSelector = new FeatureSelectorPopup(
+      this.featureSelector = new FeatureSelectorGui(
         shape.c,
         async (featureSpecs: Array<ILFeatureSpec>) => {
           await this.clear_feature_extractors()
-          await this.add_ilp_feature_extractors(featureSpecs)
+          if(featureSpecs.length > 0){
+            await this.add_ilp_feature_extractors(featureSpecs)
+          }
         }
       )
     }
