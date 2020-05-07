@@ -353,6 +353,11 @@ export class ILPixelClassificationWorkflow extends ILObject{
         await this.rpc("add_ilp_feature_extractors", {extractor_specs: featureSpecs})
     }
 
+    public async get_ilp_feature_extractors() : Promise<Array<ILFeatureSpec>>{
+        let raw_specs = <Array<any>>(await this.rpc("get_ilp_feature_extractors"))
+        return raw_specs.map(raw_spec => new ILFeatureSpec(raw_spec))
+    }
+
     public async add_feature_extractors(extractors: Array<ILFeatureExtractor>){
         await this.rpc("add_feature_extractors", {extractors: extractors.map(fe => {return fe.__self__})})
     }

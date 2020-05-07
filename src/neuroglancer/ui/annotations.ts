@@ -48,8 +48,8 @@ import {RangeWidget} from 'neuroglancer/widget/range';
 import {StackView, Tab} from 'neuroglancer/widget/tab_view';
 import {makeTextIconButton} from 'neuroglancer/widget/text_icon_button';
 import {Uint64EntryWidget} from 'neuroglancer/widget/uint64_entry_widget';
-import {PixelClassificationWorkflow} from 'neuroglancer/pixel_classification'
 import {createInput} from 'neuroglancer/util/dom'
+import {PixelClassificationWorkflow, IlastikToolbox} from 'neuroglancer/pixel_classification'
 
 type AnnotationIdAndPart = {
   id: string,
@@ -467,32 +467,27 @@ export class AnnotationLayerView extends Tab {
       });
       toolbox.appendChild(ellipsoidButton);
 
-      //Maybe we can just implement this somewhere else so we don't have to polute neuroglancer's logic
-      const brushButton = document.createElement('button');
-      brushButton.textContent = getAnnotationTypeHandler(AnnotationType.BRUSH).icon;
-      brushButton.title = 'Annotate with brush strokes';
-      brushButton.addEventListener('click', async () => {
-        const workflow = await PixelClassificationWorkflow.getInstance()
-        var ds = await workflow.getFirstRawDataSource()
-        this.layer.tool.value = new PlaceBrushStrokeTool(this.layer, {}, await ds.getShape());
-      });
-      toolbox.appendChild(brushButton);
-
-      createInput({inputType: 'button', value: 'Features', parentElement: toolbox, click: async () => {
-        (await PixelClassificationWorkflow.getInstance()).showFeatureSelection(this.element)
-      }})
-
-      createInput({inputType: 'button', value: 'get .ilp', parentElement: toolbox, click: async () => {
-        let workflow = await PixelClassificationWorkflow.getInstance()
-        workflow.downloadIlp()
-      }})
-
-      createInput({inputType: 'button', value: 'save to cloud', parentElement: toolbox, click: async () => {
-        let workflow = await PixelClassificationWorkflow.getInstance()
-        workflow.interactiveUploadToCloud()
-      }})
     }
     this.element.appendChild(toolbox);
+
+    let ilastikToolboxPlaceholder = document.createElement("div")
+    ilastikToolboxPlaceholder.style.border = "solid 5px grey"
+    this.element.appendChild(ilastikToolboxPlaceholder);
+    PixelClassificationWorkflow.getInstance().then(workflow => {
+      const ilastikToolbox = new IlastikToolbox(workflow)
+      ilastikToolboxPlaceholder.appendChild(ilastikToolbox.container)
+      const brushButton = createInput({
+        inputType: 'button',
+        value: getAnnotationTypeHandler(AnnotationType.BRUSH).icon,
+        click: async () => {
+          const workflow = await PixelClassificationWorkflow.getInstance()
+          var ds = await workflow.getFirstRawDataSource()
+          this.layer.tool.value = new PlaceBrushStrokeTool(this.layer, {}, await ds.getShape());
+        },
+        parentElement: ilastikToolbox.container,
+      })
+      brushButton.title = 'Annotate with brush strokes';
+    })
 
     this.element.appendChild(this.annotationListContainer);
 

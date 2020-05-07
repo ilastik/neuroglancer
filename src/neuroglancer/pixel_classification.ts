@@ -21,7 +21,26 @@ export class FeatureSelectorGui{
     this.featuresWindow.style.display = 'none'
   }
 
-  public constructor(num_input_channels: number, resolve: (featureSpecs: Array<ILFeatureSpec>) => any){
+  public static async create(
+    workflow: PixelClassificationWorkflow, resolve: (featureSpecs: Array<ILFeatureSpec>) => any, axis_2d: string = 'z'
+  ): Promise<FeatureSelectorGui>{
+    const datasource = await workflow.getFirstRawDataSource()
+    const num_input_channels = (await datasource.getShape()).c
+    let preselected_features = new Map<string, Set<number>>();
+    (await workflow.get_ilp_feature_extractors()).forEach(spec => {
+      let scale_set = preselected_features.get(spec.name) || new Set<number>()
+      scale_set.add(spec.scale)
+      preselected_features.set(spec.name, scale_set)
+    })
+    return new FeatureSelectorGui(preselected_features, num_input_channels, axis_2d, resolve)
+  }
+
+  private constructor(
+    preselected_features: Map<string, Set<number>>,
+    num_input_channels: number,
+    axis_2d: string = 'z',
+    resolve: (featureSpecs: Array<ILFeatureSpec>) => any
+  ){
     this.featuresWindow = document.createElement("div")
     this.featuresWindow.style.display = "none"
     this.featuresWindow.style.backgroundColor = "#252525"
@@ -43,19 +62,19 @@ export class FeatureSelectorGui{
     var tr = createElement({tagName: 'tr', parentElement: table})
 
     createElement({tagName: 'th', innerHTML: 'Feature / sigma', parentElement: tr})
-    for(let val of column_values){
-      createElement({tagName: 'th', innerHTML: val.toFixed(1), parentElement: tr})
+    for(let scale of column_values){
+      createElement({tagName: 'th', innerHTML: scale.toFixed(1), parentElement: tr})
     }
 
-    featureNames.forEach(async (featureName, featureLabel) => {
-      var tr = createElement({tagName: 'tr', parentElement: table, innerHTML: `<td>${featureLabel}</td>`})
-      for(let val of column_values){
+    featureNames.forEach(async (featureName, featureDisplayName) => {
+      var tr = createElement({tagName: 'tr', parentElement: table, innerHTML: `<td>${featureDisplayName}</td>`})
+      for(let scale of column_values){
         const td = createElement({tagName: 'td', parentElement: tr})
-        if(val == 0.3 && featureName != ILFilterName.GaussianSmoothing){
+        if(scale == 0.3 && featureName != ILFilterName.GaussianSmoothing){
             continue
         }
-        const featureSpec = new ILFeatureSpec({name: featureName, scale: val, axis_2d: "z", num_input_channels})
-        createInput({inputType: 'checkbox', parentElement: td, click: (e) => {
+        const featureSpec = new ILFeatureSpec({name: featureName, scale, axis_2d, num_input_channels})
+        let checkbox = createInput({inputType: 'checkbox', parentElement: td, click: (e) => {
           let cb = <HTMLInputElement>e.target
           if(cb.checked){
             selected_features.add(featureSpec)
@@ -63,6 +82,9 @@ export class FeatureSelectorGui{
             selected_features.delete(featureSpec)
           }
         }})
+        if(preselected_features.get(featureName) && preselected_features.get(featureName)!.has(scale)){
+          checkbox.click()
+        }
       }
     })
 
@@ -84,9 +106,44 @@ export class FeatureSelectorGui{
   }
 }
 
+export class IlastikToolbox{
+  public readonly container: HTMLDivElement = document.createElement("div")
+  private featureSelector: FeatureSelectorGui|undefined
+
+  constructor(public readonly workflow: PixelClassificationWorkflow){
+    createElement({tagName: "h3", parentElement: this.container, innerHTML: "Pixel Classification Tools"})
+    createInput({inputType: 'button', value: 'Features', parentElement: this.container, click: () => {
+      this.showFeatureSelector()
+    }})
+
+    createInput({inputType: 'button', value: 'get .ilp', parentElement: this.container, click: () => {
+      this.workflow.downloadIlp()
+    }})
+
+    createInput({inputType: 'button', value: 'save to cloud', parentElement: this.container, click: () => {
+      this.workflow.interactiveUploadToCloud()
+    }})
+  }
+
+  private async showFeatureSelector(){
+    if(this.featureSelector !== undefined){
+      this.featureSelector.hide()
+    }
+    this.featureSelector = await FeatureSelectorGui.create(
+      this.workflow,
+      async (featureSpecs: Array<ILFeatureSpec>) => {
+        await this.workflow.clear_feature_extractors()
+        if(featureSpecs.length > 0){
+          await this.workflow.add_ilp_feature_extractors(featureSpecs)
+        }
+      }
+    )
+    this.featureSelector.show(this.container)
+  }
+}
+
 export class PixelClassificationWorkflow extends ILPixelClassificationWorkflow{
   private static instance: PixelClassificationWorkflow|undefined
-  private featureSelector: FeatureSelectorGui|undefined
 
   public async getFirstRawDataSource() : Promise<ILDataSource>{
     const lanes = await this.getLanes()
@@ -96,23 +153,6 @@ export class PixelClassificationWorkflow extends ILPixelClassificationWorkflow{
     }
     const datasource_info = await lanes[0].getRawData()
     return await datasource_info.getDataSource()
-  }
-
-  public async showFeatureSelection(parentElement: HTMLElement){
-    if(this.featureSelector === undefined){
-      const datasource = await this.getFirstRawDataSource()
-      const shape = await datasource.getShape()
-      this.featureSelector = new FeatureSelectorGui(
-        shape.c,
-        async (featureSpecs: Array<ILFeatureSpec>) => {
-          await this.clear_feature_extractors()
-          if(featureSpecs.length > 0){
-            await this.add_ilp_feature_extractors(featureSpecs)
-          }
-        }
-      )
-    }
-    this.featureSelector.show(parentElement)
   }
 
   public getIlastikToken(): string|null{
