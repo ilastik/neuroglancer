@@ -171,12 +171,12 @@ export class BrushAnnotation implements Brush{
     if(this.getNumVoxels() > 0){
       const lastVoxel = this.getVoxel(this.getNumVoxels() - 1)
       if(vec3.equals(lastVoxel, roundedCoordsVoxel)){
-        console.log(`Discarding repeated voxel ${roundedCoordsVoxel}`)
+        //console.log(`Discarding repeated voxel ${roundedCoordsVoxel}`)
         return
       }
     }
 
-    console.log(`Adding new voxel ${roundedCoordsVoxel}`)
+    //console.log(`Adding new voxel ${roundedCoordsVoxel}`)
     this.appendVoxelToBuffer(roundedCoordsVoxel)
   }
 
@@ -204,6 +204,7 @@ export class BrushAnnotation implements Brush{
 
   public async upload(){
     const pixelWorkflow = await PixelClassificationWorkflow.getInstance()
+    pixelWorkflow.dropPredictionLayer() //this might help stopping some HTTP requests
     const dataSource = await pixelWorkflow.getFirstRawDataSource()
     const jsonData = this.toJsonData()
 

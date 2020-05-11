@@ -1042,8 +1042,8 @@ export class PlaceBrushStrokeTool extends TwoStepAnnotationTool {
        (currentPoint[1] == 0 || currentPoint[1] == this.boundaries.y) ||
        (currentPoint[2] == 0 || currentPoint[2] == this.boundaries.z)
     ){
-      console.log("Discarding buggy spurious voxel:")
-      console.log(currentPoint)
+      //console.log("Discarding buggy spurious voxel:")
+      //console.log(currentPoint)
       return oldAnnotation
     }
 

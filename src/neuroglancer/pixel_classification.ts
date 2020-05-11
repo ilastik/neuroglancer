@@ -208,6 +208,8 @@ export class IlastikToolbox{
 
 export class PixelClassificationWorkflow extends ILPixelClassificationWorkflow{
   private static instance: PixelClassificationWorkflow|undefined
+  private refresh_counter = 0;
+  public readonly predictionsLabel = 'ilastik predictions'
 
   public async getFirstRawDataSource() : Promise<ILDataSource>{
     const lanes = await this.getLanes()
@@ -241,32 +243,36 @@ export class PixelClassificationWorkflow extends ILPixelClassificationWorkflow{
   }
 
   public async add_ilp_feature_extractors(featureSpecs: Array<ILFeatureSpec>){
+    this.dropPredictionLayer()
     await super.add_ilp_feature_extractors(featureSpecs)
-    await this.refreshPredictionLayer()
+    this.refreshpredictionlayer()
   }
 
   public async add_annotations(annotations: Array<ILAnnotation>){
+    this.dropPredictionLayer()
     await super.add_annotations(annotations)
-    await this.refreshPredictionLayer()
+    this.refreshpredictionlayer()
   }
 
   public async remove_annotations(annotations: Array<ILAnnotation>){
+    this.dropPredictionLayer()
     await super.remove_annotations(annotations)
-    await this.refreshPredictionLayer()
+    this.refreshpredictionlayer()
   }
 
 
-  public async refreshPredictionLayer(){
-    const predictionsLabel = 'ilastik predictions'
-
+  public dropPredictionLayer(){
     const viewer = <Viewer>((<any>window)['viewer']);
     const layerManager = viewer.layerSpecification.layerManager;
-    const predictionsLayer = layerManager.getLayerByName(predictionsLabel);
+    const predictionsLayer = layerManager.getLayerByName(this.predictionsLabel);
 
     if(predictionsLayer !== undefined){
       layerManager.removeManagedLayer(predictionsLayer);
     }
+  }
 
+  public async refreshpredictionlayer(){
+    const this_refresh_counter = ++this.refresh_counter
     const pixelClassifier = await this.getClassifier()
     if(pixelClassifier === undefined){
       return
@@ -274,8 +280,17 @@ export class PixelClassificationWorkflow extends ILPixelClassificationWorkflow{
 
     const predictionsUrl = pixelClassifier.getPredictionsUrl(await this.getFirstRawDataSource())
     const predictionsFragShader = await pixelClassifier.getFragShader()
+    if(this.refresh_counter != this_refresh_counter){
+      console.log("Abandoning stale refresh of prediction-layer")
+      return
+    }
 
-    const newPredictionsLayer = viewer.layerSpecification.getLayer(predictionsLabel, {source: predictionsUrl, shader: predictionsFragShader});
+    this.dropPredictionLayer()
+    const viewer = <Viewer>((<any>window)['viewer']);
+    const newPredictionsLayer = viewer.layerSpecification.getLayer(
+      this.predictionsLabel,
+      {source: predictionsUrl, shader: predictionsFragShader}
+    );
     viewer.layerSpecification.add(newPredictionsLayer);
   }
 }
