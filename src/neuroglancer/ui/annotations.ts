@@ -484,7 +484,7 @@ export class AnnotationLayerView extends Tab {
           var ds = await workflow.getFirstRawDataSource()
           this.layer.tool.value = new PlaceBrushStrokeTool(this.layer, {}, await ds.getShape());
         },
-        parentElement: ilastikToolbox.container,
+        parentElement: ilastikToolbox.buttons_container,
       })
       brushButton.title = 'Annotate with brush strokes';
     })

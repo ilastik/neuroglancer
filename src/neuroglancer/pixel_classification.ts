@@ -108,20 +108,84 @@ export class FeatureSelectorGui{
 
 export class IlastikToolbox{
   public readonly container: HTMLDivElement = document.createElement("div")
+  public readonly buttons_container: HTMLDivElement
   private featureSelector: FeatureSelectorGui|undefined
+  private jobs_anchor: HTMLAnchorElement
+  private readonly TOKEN_STORAGE_KEY = "ilastikToken"
 
   constructor(public readonly workflow: PixelClassificationWorkflow){
     createElement({tagName: "h3", parentElement: this.container, innerHTML: "Pixel Classification Tools"})
-    createInput({inputType: 'button', value: 'Features', parentElement: this.container, click: () => {
+
+    this.buttons_container = <HTMLDivElement>createElement({tagName: "div", parentElement: this.container})
+
+    createInput({inputType: 'button', value: 'Features', parentElement: this.buttons_container, click: () => {
       this.showFeatureSelector()
     }})
 
-    createInput({inputType: 'button', value: 'get .ilp', parentElement: this.container, click: () => {
+    createInput({inputType: 'button', value: 'get .ilp', parentElement: this.buttons_container, click: () => {
       this.workflow.downloadIlp()
     }})
 
-    createInput({inputType: 'button', value: 'save to cloud', parentElement: this.container, click: () => {
-      this.workflow.interactiveUploadToCloud()
+    createInput({inputType: 'button', value: 'save to cloud', parentElement: this.buttons_container, click: () => {
+      let token = window.localStorage.getItem(this.TOKEN_STORAGE_KEY)
+      if(token === null){
+        this.getIlastikToken()
+        return
+      }
+      this.uploadToCloud(token)
+    }})
+
+    this.jobs_anchor = <HTMLAnchorElement>createElement({tagName: "a", parentElement: this.container, innerHTML: "Go to job runner"})
+    this.jobs_anchor.target = "_blank"
+    this.jobs_anchor.style.display = 'none'
+    this.jobs_anchor.style.color = 'white'
+  }
+
+  private getIlastikToken(){
+    let token_url = "https://web.ilastik.org/token/"
+    window.open(token_url)
+
+    let token_controls =  createElement({tagName: "div", parentElement: this.container, innerHTML: "<h4>Ilastik Token</h4>"})
+    createElement({tagName: "p", parentElement: token_controls, innerHTML: `Please copy your token from ${token_url} into the field below`})
+    let token_text_input = createInput({inputType: "text", parentElement: token_controls})
+    createInput({inputType: "button", parentElement: token_controls, value: "OK", click: () => {
+      let token = token_text_input.value
+      if(!token){
+        return
+      }
+      window.localStorage.setItem(this.TOKEN_STORAGE_KEY, token)
+      removeFromParent(token_controls)
+      this.uploadToCloud(token)
+    }})
+    createInput({inputType: "button", parentElement: token_controls, value: "Cancel", click: () => {
+      removeFromParent(token_controls)
+    }})
+  }
+
+  private async uploadToCloud(token: string){
+    let upload_controls = createElement({tagName: "div", parentElement: this.container, innerHTML: `
+      <h4>Project upload</h4>
+      <label>Project name: </label>
+    `})
+    let project_name_input = createInput({inputType: "text", parentElement: upload_controls})
+    createInput({inputType: 'button', parentElement: upload_controls, value: "Ok", click: async () => {
+      let projectName = project_name_input.value
+      if(!projectName){
+        return
+      }
+      try{
+        let payload = await this.workflow.upload_to_cloud_ilastik(token, projectName)
+        this.jobs_anchor.href = payload["html_url"]
+        this.jobs_anchor.style.display = "inline"
+      }catch(ex){
+        this.jobs_anchor.style.display = "none"
+        alert(ex)
+      }finally{
+        removeFromParent(upload_controls)
+      }
+    }})
+    createInput({inputType: "button", parentElement: upload_controls, value: "Cancel", click: () => {
+      removeFromParent(upload_controls)
     }})
   }
 
@@ -153,38 +217,6 @@ export class PixelClassificationWorkflow extends ILPixelClassificationWorkflow{
     }
     const datasource_info = await lanes[0].getRawData()
     return await datasource_info.getDataSource()
-  }
-
-  public getIlastikToken(): string|null{
-    let key = "ilastikToken"
-    let storage = window.localStorage
-    let token = storage.getItem(key)
-    if(token != null){
-      return token
-    }
-    let token_url = "https://web.ilastik.org/token/"
-    window.open(token_url)
-    let copied_token = prompt(`Please copy your ilastik token (from ${token_url} here`)
-    if(copied_token == null){
-      return null
-    }
-    storage.setItem(key, copied_token)
-    return copied_token
-  }
-
-  public async interactiveUploadToCloud(){
-    let token = this.getIlastikToken()
-    if(token == null){
-      return
-    }
-    let projectName = prompt("Please enter a project name:")
-    if(projectName == null){
-      return
-    }
-    let payload = await super.upload_to_cloud_ilastik(token, projectName)
-
-    alert(`Success! You can now fire jobs from ${payload["html_url"]} !`)
-    window.open(payload["html_url"]) //FIXME: this is not opening  anew tab -.-
   }
 
   public static async getInstance(): Promise<PixelClassificationWorkflow>{
