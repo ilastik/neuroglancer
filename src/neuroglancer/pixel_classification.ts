@@ -196,6 +196,7 @@ export class IlastikToolbox{
     this.featureSelector = await FeatureSelectorGui.create(
       this.workflow,
       async (featureSpecs: Array<ILFeatureSpec>) => {
+        this.workflow.dropPredictionLayer()
         await this.workflow.clear_feature_extractors()
         if(featureSpecs.length > 0){
           await this.workflow.add_ilp_feature_extractors(featureSpecs)
