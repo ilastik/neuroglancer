@@ -299,8 +299,8 @@ export class ILPixelClassifier extends ILObject{
 
 
 export class ILPixelClassificationWorkflow extends ILObject{
-    public static get endpointName() : string{ return "PixelClassificationWorkflow2" }
-    public get endpointName() : string{ return "PixelClassificationWorkflow2" }
+    public static get endpointName() : string{ return "PixelClassificationWorkflow" }
+    public get endpointName() : string{ return "PixelClassificationWorkflow" }
 
     public async getLanes() : Promise<Array<ILDataLane>>{
         let data = await this.getData()
